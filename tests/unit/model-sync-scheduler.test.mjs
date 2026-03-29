@@ -31,7 +31,7 @@ test("initCloudSync: startup initialization also starts model sync scheduler", (
 });
 
 test("proxy: internal model sync token is only allowed for provider model sync routes", () => {
-  const filePath = path.join(process.cwd(), "src/proxy.ts");
+  const filePath = path.join(process.cwd(), "src/middleware.ts");
   const source = fs.readFileSync(filePath, "utf8");
 
   assert.match(source, /isModelSyncInternalRequest/);
