@@ -11,7 +11,7 @@ test.afterEach(() => {
 });
 
 test("usage service covers GitHub free-plan parsing, auth denial and unsupported providers", async () => {
-  const calls = [];
+  const calls: any[] = [];
   globalThis.fetch = async (_url, init = {}) => {
     calls.push(init);
     return new Response(
@@ -126,7 +126,7 @@ test("usage service covers GitHub paid snapshot edge cases, missing quota payloa
 });
 
 test("usage service covers Gemini CLI access-token checks, cached subscription lookup and quota failures", async () => {
-  const calls = [];
+  const calls: any[] = [];
   globalThis.fetch = async (url, init = {}) => {
     calls.push({ url: String(url), init });
 
@@ -259,7 +259,7 @@ test("usage service covers Gemini CLI tier-label fallbacks and fetch error handl
 });
 
 test("usage service covers Antigravity quota parsing, exclusions and forbidden access", async () => {
-  const calls = [];
+  const calls: any[] = [];
 
   globalThis.fetch = async (url, init = {}) => {
     calls.push({ url: String(url), init });
@@ -346,7 +346,7 @@ test("usage service covers Antigravity quota parsing, exclusions and forbidden a
 });
 
 test("usage service retries Antigravity fetchAvailableModels across the shared fallback order", async () => {
-  const calls = [];
+  const calls: any[] = [];
 
   globalThis.fetch = async (url, init = {}) => {
     calls.push({ url: String(url), init });
@@ -361,13 +361,16 @@ test("usage service retries Antigravity fetchAvailableModels across the shared f
       );
     }
 
-    if (String(url).startsWith("https://cloudcode-pa.googleapis.com/")) {
-      return new Response("bad gateway", { status: 502 });
-    }
-
-    const urlStr = String(url);
-    if (urlStr.includes("://daily-cloudcode-pa.googleapis.com/")) {
-      return new Response("bad gateway", { status: 502 });
+    try {
+      const parsedUrl = new URL(String(url));
+      if (parsedUrl.hostname === "cloudcode-pa.googleapis.com") {
+        return new Response("bad gateway", { status: 502 });
+      }
+      if (parsedUrl.hostname === "daily-cloudcode-pa.googleapis.com") {
+        return new Response("bad gateway", { status: 502 });
+      }
+    } catch {
+      // Ignore invalid URLs
     }
 
     return new Response(
@@ -851,8 +854,90 @@ test("usage service covers Qwen, Qoder, GLM and GLMT branches", async () => {
   );
 });
 
+test("usage service covers MiniMax usage parsing, documented endpoint fallback and auth errors", async () => {
+  const calls: any[] = [];
+  const beforeCall = Date.now();
+
+  globalThis.fetch = async (url, init = {}) => {
+    calls.push({ url: String(url), init });
+
+    if (String(url) === "https://www.minimax.io/v1/token_plan/remains") {
+      return new Response("missing", { status: 404 });
+    }
+
+    if (String(url) === "https://api.minimax.io/v1/api/openplatform/coding_plan/remains") {
+      assert.equal((init as any).headers.Authorization, "Bearer minimax-key");
+      assert.equal((init as any).headers.Accept, "application/json");
+
+      return new Response(
+        JSON.stringify({
+          base_resp: { status_code: 0, status_msg: "ok" },
+          model_remains: [
+            {
+              model_name: "MiniMax-M2.7",
+              remains_time: 300_000,
+              current_interval_total_count: 1500,
+              current_interval_usage_count: 1100,
+              current_weekly_total_count: 15000,
+              current_weekly_usage_count: 13800,
+              weekly_remains_time: 1_800_000,
+            },
+            {
+              model_name: "image-01",
+              remains_time: 86_400_000,
+              current_interval_total_count: 50,
+              current_interval_usage_count: 45,
+            },
+          ],
+        }),
+        { status: 200 }
+      );
+    }
+
+    if (String(url) === "https://www.minimaxi.com/v1/api/openplatform/coding_plan/remains") {
+      return new Response(
+        JSON.stringify({
+          base_resp: {
+            status_code: 1004,
+            status_msg: "token plan api key invalid",
+          },
+        }),
+        { status: 403 }
+      );
+    }
+
+    throw new Error(`unexpected fetch: ${url}`);
+  };
+
+  const usage: any = await usageService.getUsageForProvider({
+    provider: "minimax",
+    apiKey: "minimax-key",
+  });
+
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    [
+      "https://www.minimax.io/v1/token_plan/remains",
+      "https://api.minimax.io/v1/api/openplatform/coding_plan/remains",
+    ]
+  );
+  assert.equal(usage.quotas["session (5h)"].used, 400);
+  assert.equal(usage.quotas["session (5h)"].total, 1500);
+  assert.equal(usage.quotas["session (5h)"].remaining, 1100);
+  assert.equal(usage.quotas["weekly (7d)"].used, 1200);
+  assert.equal(usage.quotas["weekly (7d)"].total, 15000);
+  assert.equal(usage.quotas["weekly (7d)"].remainingPercentage, 92);
+  assert.ok(Date.parse(usage.quotas["session (5h)"].resetAt) >= beforeCall + 240_000);
+
+  const invalid: any = await usageService.getUsageForProvider({
+    provider: "minimax-cn",
+    apiKey: "bad-minimax-key",
+  });
+  assert.match(invalid.message, /Token Plan API key/i);
+});
+
 test("usage service parses Cursor team quotas and clamps on-demand ratio", async () => {
-  const calls = [];
+  const calls: any[] = [];
   globalThis.fetch = async (url, init = {}) => {
     calls.push({ url: String(url), init });
 

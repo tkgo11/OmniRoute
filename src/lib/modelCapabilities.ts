@@ -6,11 +6,16 @@ import { parseModel, resolveCanonicalProviderModel } from "@omniroute/open-sse/s
 import { MODEL_SPECS, getModelSpec, type ModelSpec } from "@/shared/constants/modelSpecs";
 import { getSyncedCapability } from "@/lib/modelsDevSync";
 
-const TOOL_CALLING_UNSUPPORTED_PATTERNS = ["gpt-oss-120b", "deepseek-reasoner"];
+const TOOL_CALLING_UNSUPPORTED_PATTERNS: string[] = [];
 const REASONING_UNSUPPORTED_PATTERNS = [
   "antigravity/claude-sonnet-4-6",
   "antigravity/claude-sonnet-4-5",
   "antigravity/claude-sonnet-4",
+  // Non-Claude antigravity models don't support thinking params (#1361)
+  "antigravity/gemini-",
+  "antigravity/gpt-oss-",
+  "antigravity/gemini-3",
+  "antigravity/tab_",
 ];
 
 type CapabilityInput =

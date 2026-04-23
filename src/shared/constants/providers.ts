@@ -3,7 +3,16 @@
 // Free Providers
 export const FREE_PROVIDERS = {
   qoder: { id: "qoder", alias: "if", name: "Qoder AI", icon: "water_drop", color: "#6366F1" },
-  qwen: { id: "qwen", alias: "qw", name: "Qwen Code", icon: "psychology", color: "#10B981" },
+  qwen: {
+    id: "qwen",
+    alias: "qw",
+    name: "Qwen Code",
+    icon: "psychology",
+    color: "#10B981",
+    deprecated: true,
+    deprecationReason:
+      "Qwen OAuth free tier was discontinued on 2026-04-15. Use 'alicode', 'alicode-intl', or 'openrouter' provider with API key instead.",
+  },
   "gemini-cli": {
     id: "gemini-cli",
     alias: "gemini-cli",
@@ -85,6 +94,27 @@ export const WEB_COOKIE_PROVIDERS = {
     website: "https://www.perplexity.ai",
     authHint: "Paste your __Secure-next-auth.session-token cookie value from perplexity.ai",
   },
+  "blackbox-web": {
+    id: "blackbox-web",
+    alias: "bb-web",
+    name: "Blackbox Web (Subscription)",
+    icon: "view_in_ar",
+    color: "#1A1A2E",
+    textIcon: "BW",
+    website: "https://app.blackbox.ai",
+    authHint:
+      "Paste your __Secure-authjs.session-token value or full cookie header from app.blackbox.ai",
+  },
+  "muse-spark-web": {
+    id: "muse-spark-web",
+    alias: "ms-web",
+    name: "Muse Spark Web (Meta AI)",
+    icon: "auto_awesome",
+    color: "#0866FF",
+    textIcon: "MS",
+    website: "https://www.meta.ai",
+    authHint: "Paste your abra_sess value or full cookie header from meta.ai",
+  },
 };
 
 // API Key Providers
@@ -106,6 +136,15 @@ export const APIKEY_PROVIDERS = {
     icon: "code",
     color: "#2563EB",
     textIcon: "GL",
+    website: "https://open.bigmodel.cn",
+  },
+  "glm-cn": {
+    id: "glm-cn",
+    alias: "glmcn",
+    name: "GLM Coding (China)",
+    icon: "code",
+    color: "#DC2626",
+    textIcon: "GC",
     website: "https://open.bigmodel.cn",
   },
   glmt: {
@@ -189,6 +228,18 @@ export const APIKEY_PROVIDERS = {
     color: "#10A37F",
     textIcon: "OA",
     website: "https://platform.openai.com",
+  },
+  "azure-openai": {
+    id: "azure-openai",
+    alias: "azure",
+    name: "Azure OpenAI",
+    icon: "cloud",
+    color: "#0078D4",
+    textIcon: "AZ",
+    website: "https://azure.microsoft.com/products/ai-services/openai-service",
+    authHint:
+      "Use your Azure OpenAI API key. Base URL should be your resource endpoint, for example https://my-resource.openai.azure.com.",
+    passthroughModels: true,
   },
   anthropic: {
     id: "anthropic",
@@ -355,6 +406,15 @@ export const APIKEY_PROVIDERS = {
     textIcon: "NB",
     website: "https://nanobananaapi.ai",
   },
+  "lm-studio": {
+    id: "lm-studio",
+    alias: "lmstudio",
+    name: "LM Studio",
+    icon: "server",
+    color: "#4A148C",
+    textIcon: "LM",
+    website: "https://lmstudio.ai",
+  },
   "ollama-cloud": {
     id: "ollama-cloud",
     alias: "ollamacloud",
@@ -422,6 +482,16 @@ export const APIKEY_PROVIDERS = {
     textIcon: "VA",
     website: "https://cloud.google.com/vertex-ai",
     authHint: "Provide Service Account JSON or OAuth access_token",
+  },
+  "vertex-partner": {
+    id: "vertex-partner",
+    alias: "vp",
+    name: "Vertex AI Partners",
+    icon: "cloud",
+    color: "#34A853",
+    textIcon: "VP",
+    website: "https://cloud.google.com/vertex-ai",
+    authHint: "Provide the same Service Account JSON used for Vertex AI partner models.",
   },
   zai: {
     id: "zai",
@@ -1156,6 +1226,8 @@ export const USAGE_SUPPORTED_PROVIDERS = [
   "kimi-coding",
   "glm",
   "glmt",
+  "minimax",
+  "minimax-cn",
 ];
 
 // ── Zod validation at module load (Phase 7.2) ──

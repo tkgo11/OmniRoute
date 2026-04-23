@@ -92,9 +92,17 @@ export const updateSettingsSchema = z.object({
     .optional(),
   // SkillsMP marketplace API key
   skillsmpApiKey: z.string().max(200).optional(),
+  // Active skills provider (single source of truth for skills page)
+  skillsProvider: z.enum(["skillsmp", "skillssh"]).optional(),
   // models.dev sync settings
   modelsDevSyncEnabled: z.boolean().optional(),
   modelsDevSyncInterval: z.number().int().min(3600000).max(604800000).optional(),
+  // Vision Bridge settings
+  visionBridgeEnabled: z.boolean().optional(),
+  visionBridgeModel: z.string().max(200).optional(),
+  visionBridgePrompt: z.string().max(5000).optional(),
+  visionBridgeTimeout: z.number().int().min(1000).max(300000).optional(),
+  visionBridgeMaxImages: z.number().int().min(1).max(20).optional(),
   // Missing settings
   lkgpEnabled: z.boolean().optional(),
   backgroundDegradation: z.unknown().optional(),

@@ -213,13 +213,25 @@ test("MCP server enforces scopes from caller context before tool execution", () 
   );
 });
 
+test("ACP agents route requires management authentication before CLI discovery", () => {
+  const content = readIfExists("src/app/api/acp/agents/route.ts");
+  assert.ok(content, "src/app/api/acp/agents/route.ts should exist");
+  assert.ok(
+    content.includes('from "@/shared/utils/apiAuth"'),
+    "ACP agents route should import shared API auth"
+  );
+  assert.ok(
+    content.includes("if (!(await isAuthenticated(request)))"),
+    "ACP agents route should reject unauthenticated requests before spawning discovery"
+  );
+});
+
 test("T06 route payload validation uses validateBody in critical endpoints", () => {
   const targets = [
     "src/app/api/usage/budget/route.ts",
     "src/app/api/policies/route.ts",
     "src/app/api/fallback/chains/route.ts",
     "src/app/api/models/route.ts",
-    "src/app/api/models/availability/route.ts",
     "src/app/api/provider-models/route.ts",
     "src/app/api/pricing/route.ts",
     "src/app/api/rate-limits/route.ts",

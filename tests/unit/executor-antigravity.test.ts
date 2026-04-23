@@ -88,6 +88,63 @@ test("AntigravityExecutor.transformRequest normalizes model, project and content
   assert.equal(result.request.contents[1].role, "user");
 });
 
+test("AntigravityExecutor.transformRequest strips thinking config for Cloud Code models that do not support reasoning", async () => {
+  const executor = new AntigravityExecutor();
+  const body = {
+    reasoning_effort: "high",
+    request: {
+      generationConfig: {
+        thinkingConfig: {
+          thinkingBudget: 8192,
+          includeThoughts: true,
+        },
+      },
+      contents: [{ role: "user", parts: [{ text: "Hello" }] }],
+    },
+  };
+
+  const result = await executor.transformRequest("antigravity/claude-sonnet-4-6", body, true, {
+    projectId: "project-1",
+  });
+
+  assert.equal(result.reasoning_effort, undefined);
+  assert.equal(result.request.generationConfig.thinkingConfig, undefined);
+});
+
+test("AntigravityExecutor.transformRequest preserves thinking config for supported Gemini models", async () => {
+  const executor = new AntigravityExecutor();
+  const body = {
+    request: {
+      generationConfig: {
+        thinkingConfig: {
+          thinkingBudget: 8192,
+          includeThoughts: true,
+        },
+      },
+      contents: [{ role: "user", parts: [{ text: "Hello" }] }],
+    },
+  };
+
+  const result = await executor.transformRequest("antigravity/gemini-3.1-pro-high", body, true, {
+    projectId: "project-1",
+  });
+
+  assert.equal(result.request.generationConfig.thinkingConfig.thinkingBudget, 8192);
+  assert.equal(result.request.generationConfig.thinkingConfig.includeThoughts, true);
+});
+
+test("AntigravityExecutor.transformRequest tolerates a missing body when projectId is present", async () => {
+  const executor = new AntigravityExecutor();
+
+  const result = await executor.transformRequest("antigravity/gemini-3.1-pro", null, true, {
+    projectId: "project-1",
+  });
+
+  assert.equal(result.project, "project-1");
+  assert.equal(result.model, "gemini-3.1-pro-low");
+  assert.ok(result.request.sessionId);
+});
+
 test("AntigravityExecutor.transformRequest returns a structured error response when projectId is missing", async () => {
   const executor = new AntigravityExecutor();
   const result = await executor.transformRequest(
@@ -96,7 +153,7 @@ test("AntigravityExecutor.transformRequest returns a structured error response w
     true,
     {}
   );
-  const payload = await result.json();
+  const payload = (await result.json()) as any;
 
   assert.equal(result.status, 422);
   assert.equal(payload.error.code, "missing_project_id");
@@ -174,7 +231,7 @@ test("AntigravityExecutor.collectStreamToResponse turns SSE Gemini chunks into a
     { Authorization: "Bearer ag-token" },
     { request: {} }
   );
-  const payload = await result.response.json();
+  const payload = (await result.response.json()) as any;
 
   assert.equal(result.response.status, 200);
   assert.equal(payload.object, "chat.completion");
@@ -259,7 +316,7 @@ test("AntigravityExecutor.execute auto-retries short 429 responses and collects 
       credentials: { accessToken: "token", projectId: "project-1" },
       log: { debug() {}, warn() {} },
     });
-    const payload = await result.response.json();
+    const payload = (await result.response.json()) as any;
 
     assert.equal(calls.length, 2);
     assert.equal(result.response.status, 200);
@@ -301,7 +358,7 @@ test("AntigravityExecutor.execute embeds retryAfterMs when the upstream asks for
       credentials: { accessToken: "token", projectId: "project-1" },
       log: { debug() {}, warn() {} },
     });
-    const payload = await result.response.json();
+    const payload = (await result.response.json()) as any;
 
     assert.equal(result.response.status, 429);
     assert.equal(payload.retryAfterMs, 7_200_000);

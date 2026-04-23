@@ -51,6 +51,9 @@ async function registerSkill({
   handler,
   enabled = true,
   description = "Test skill",
+  mode,
+  tags,
+  installCount,
 }) {
   return skillRegistry.register({
     apiKeyId,
@@ -71,6 +74,9 @@ async function registerSkill({
     },
     handler,
     enabled,
+    mode,
+    tags,
+    installCount,
   });
 }
 
@@ -83,7 +89,7 @@ test("skills API lists registered skills", async () => {
   });
 
   const response = await skillsRouteModule.GET();
-  const json = await response.json();
+  const json = (await response.json()) as any;
 
   assert.equal(response.status, 200);
   assert.ok(Array.isArray(json.skills));
@@ -164,7 +170,7 @@ test("matching tool calls execute the registered skill and return tool results",
       },
     })
   );
-  const json = await response.json();
+  const json = (await response.json()) as any;
 
   assert.equal(response.status, 200);
   assert.equal(json.choices[0].finish_reason, "tool_calls");
@@ -196,7 +202,7 @@ test("non-matching responses fall through the pipeline normally", async () => {
       },
     })
   );
-  const json = await response.json();
+  const json = (await response.json()) as any;
 
   assert.equal(response.status, 200);
   assert.equal(json.choices[0].message.content, "Normal pipeline response");
@@ -269,7 +275,7 @@ test("skill execution errors are returned gracefully in tool results", async () 
       },
     })
   );
-  const json = await response.json();
+  const json = (await response.json()) as any;
 
   assert.equal(response.status, 200);
   assert.equal(json.tool_results[0].tool_call_id, "call_broken");
@@ -344,10 +350,13 @@ test("injectSkills() correctly injects skill context into a request", async () =
 
   assert.ok(Array.isArray(tools), "injectSkills should return an array");
   assert.equal(tools.length, 1, "should inject exactly one skill tool");
-  assert.equal(tools[0].type, "function");
-  assert.equal(tools[0].function.name, "translateText@1.0.0");
-  assert.equal(tools[0].function.description, "Translate text to another language");
-  assert.ok(tools[0].function.parameters, "parameters should be present");
+  assert.equal((tools[0] as any).type, "function");
+  assert.equal((tools as any)[0].function.name, "translateText@1.0.0");
+  (assert as any).equal(
+    (tools[0] as any).function.description,
+    "Translate text to another language"
+  );
+  assert.ok((tools[0] as any).function.parameters, "parameters should be present");
 });
 
 test("injectSkills() merges with existing tools without duplicating", async () => {
@@ -378,9 +387,68 @@ test("injectSkills() merges with existing tools without duplicating", async () =
   });
 
   assert.equal(tools.length, 2, "should have injected skill + existing tool");
-  const names = tools.map((t) => t.function?.name || t.name);
+  const names = tools.map((t) => (t as any).function?.name || (t as any).name);
   assert.ok(names.includes("calcRoute@1.0.0"));
   assert.ok(names.includes("preExistingTool"));
+});
+
+test("responses input context participates in AUTO skill injection", async () => {
+  await seedConnection("openai", { apiKey: "sk-openai-skills-responses-input" });
+  const apiKey = await seedApiKey();
+  await enableSkills();
+
+  await registerSkill({
+    apiKeyId: apiKey.id,
+    name: "issueSearch",
+    handler: "issue-search-handler",
+    description: "search github issues and pull requests",
+    mode: "auto",
+    tags: ["github", "issues", "search"],
+    installCount: 40,
+  });
+
+  await registerSkill({
+    apiKeyId: apiKey.id,
+    name: "calendarPlanner",
+    handler: "calendar-handler",
+    description: "manage meetings and calendars",
+    mode: "auto",
+    tags: ["calendar", "meeting"],
+    installCount: 100,
+  });
+
+  const fetchBodies = [];
+  globalThis.fetch = async (_url, init = {}) => {
+    fetchBodies.push(init.body ? JSON.parse(String(init.body)) : null);
+    return buildOpenAIResponse("AUTO skill selection via responses input");
+  };
+
+  const response = await handleChat(
+    buildRequest({
+      url: "http://localhost/v1/responses",
+      authKey: apiKey.key,
+      body: {
+        model: "openai/gpt-4o-mini",
+        stream: false,
+        input: [
+          {
+            role: "user",
+            content: [{ type: "input_text", text: "Please search github issues for flaky tests" }],
+          },
+        ],
+      },
+    })
+  );
+
+  assert.equal(response.status, 200);
+  assert.ok(Array.isArray(fetchBodies[0].tools));
+
+  const names = fetchBodies[0].tools
+    .map((tool) => tool?.function?.name)
+    .filter((name) => typeof name === "string");
+
+  assert.ok(names.includes("issueSearch@1.0.0"));
+  assert.ok(!names.includes("calendarPlanner@1.0.0"));
 });
 
 test("handleToolCallExecution() processes a tool call correctly", async () => {
@@ -534,7 +602,7 @@ test("skills pipeline can be disabled via skillsEnabled flag without crashing", 
         }
       ),
     (err) => {
-      assert.ok(err.message.includes("disabled"), "should mention disabled in error");
+      assert.ok((err as any).message.includes("disabled"), "should mention disabled in error");
       return true;
     }
   );
@@ -765,7 +833,7 @@ test("web_search fallback converts built-in tools for unsupported providers and 
       },
     })
   );
-  const json = await response.json();
+  const json = (await response.json()) as any;
 
   assert.equal(response.status, 200);
   assert.equal(upstreamBodies.length, 1);
@@ -831,7 +899,7 @@ test("web_search fallback preserves Responses API output by appending function_c
       },
     })
   );
-  const json = await response.json();
+  const json = (await response.json()) as any;
   const functionCall = json.output.find((item) => item.type === "function_call");
   const functionCallOutput = json.output.find((item) => item.type === "function_call_output");
 

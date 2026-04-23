@@ -207,9 +207,6 @@ function openaiToGeminiBase(model, body, stream, toolNameOptions: GeminiToolName
             thought: true,
             text: msg.reasoning_content,
           });
-          parts.push({
-            thoughtSignature: DEFAULT_THINKING_GEMINI_SIGNATURE,
-          });
         }
 
         if (content) {
@@ -236,7 +233,7 @@ function openaiToGeminiBase(model, body, stream, toolNameOptions: GeminiToolName
               extractClientThoughtSignature(tc)
             );
             const embeddedThoughtSignature = shouldUseEmbeddedSignature
-              ? firstPersistedSignature || signatureForToolCall || DEFAULT_THINKING_GEMINI_SIGNATURE
+              ? firstPersistedSignature || signatureForToolCall
               : undefined;
 
             if (embeddedThoughtSignature) {
@@ -541,27 +538,23 @@ function wrapInCloudCodeEnvelopeForClaude(model, claudeRequest, credentials = nu
     });
     if (geminiTools) {
       envelope.request.tools = geminiTools;
-      envelope.request.toolConfig = {
-        functionCallingConfig: { mode: "VALIDATED" },
-      };
     }
   }
 
   // Add system instruction (Antigravity default)
-  const defaultPart = { text: ANTIGRAVITY_DEFAULT_SYSTEM };
-  const systemParts = [defaultPart];
+  let combinedSystemText = ANTIGRAVITY_DEFAULT_SYSTEM;
 
   if (claudeRequest.system) {
     if (Array.isArray(claudeRequest.system)) {
       for (const block of claudeRequest.system) {
-        if (block.text) systemParts.push({ text: block.text });
+        if (block.text) combinedSystemText += "\n\n" + block.text;
       }
     } else if (typeof claudeRequest.system === "string") {
-      systemParts.push({ text: claudeRequest.system });
+      combinedSystemText += "\n\n" + claudeRequest.system;
     }
   }
 
-  envelope.request.systemInstruction = { role: "user", parts: systemParts };
+  envelope.request.systemInstruction = { role: "user", parts: [{ text: combinedSystemText }] };
 
   const changedToolNameMap = buildChangedToolNameMap(toolNameMap);
   if (changedToolNameMap) {
