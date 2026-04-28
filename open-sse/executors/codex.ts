@@ -558,6 +558,7 @@ function clampEffort(model: string, requested: string): string {
 function normalizeEffortValue(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().toLowerCase();
+  if (normalized === "max") return "xhigh";
   return normalized || undefined;
 }
 
