@@ -9,9 +9,11 @@
 ### ✨ New Features
 
 - **feat(proxy):** implement bulk proxy import via pipe-delimited parser with update-or-create (upsert) logic and real-time preview table
+- **feat(pwa):** add fullscreen installable PWA with manifest, service worker, and cross-platform app icons (#1728)
 
 ### 🐛 Bug Fixes
 
+- **fix(providers):** add API key validation for image-only providers and fix Stability AI requests to use `multipart/form-data` instead of JSON (#1726)
 - **fix(codex):** preserve `previous_response_id` and `conversation_id` fields when input array is empty to prevent schema validation errors (#1729)
 - **fix(searxng):** bypass UI validation block when `apiKeyOptional` is true and fix typing errors in provider dashboard to allow saving search providers without credentials (#1721)
 - **fix(proxy):** disable HTTP keep-alive and pipelining in Undici proxy dispatcher to prevent "Socket hang up" rotation failures
