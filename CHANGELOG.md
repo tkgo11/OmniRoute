@@ -8,6 +8,8 @@
 
 ### ✨ New Features
 
+- **feat(ui):** add endpoint tunnel visibility settings (#1743)
+- **feat(cli):** refresh CLI fingerprint provider profiles (#1746)
 - **feat(proxy):** implement bulk proxy import via pipe-delimited parser with update-or-create (upsert) logic and real-time preview table
 - **feat(pwa):** add fullscreen installable PWA with manifest, service worker, and cross-platform app icons (#1728)
 
@@ -17,6 +19,9 @@
 
 ### 🐛 Bug Fixes
 
+- **fix(cc-compatible):** fix CC-compatible relay format and UI copy (#1742)
+- **fix(codex):** normalize max reasoning effort for Codex routing (#1744)
+- **fix(claude-code):** fix Claude Code gateway config helper (#1745)
 - **fix(db):** reconcile legacy `create_reasoning_cache` migration tracking to prevent version shadowing on `032` and resolve startup warnings (#1734)
 - **fix(db):** intercept `007` migration to use idempotent `IF NOT EXISTS` logic via `PRAGMA table_info`, preventing syntax crashes on fresh installs (#1733)
 - **fix(cc-compatible):** preserve Claude Code system skeleton to prevent request rejection by strict compatible upstream providers (#1740)
