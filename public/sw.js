@@ -13,7 +13,7 @@ self.addEventListener("install", (event) => {
     caches
       .open(CACHE_NAME)
       .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting()),
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -21,8 +21,10 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim()),
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
+      )
+      .then(() => self.clients.claim())
   );
 });
 
@@ -34,7 +36,7 @@ self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
   const isSameOrigin = requestUrl.origin === self.location.origin;
   const isExcludedPath = EXCLUDED_PATH_PREFIXES.some((prefix) =>
-    requestUrl.pathname.startsWith(prefix),
+    requestUrl.pathname.startsWith(prefix)
   );
   const destination = event.request.destination;
   const isStaticAsset = ["style", "script", "image", "font"].includes(destination);
@@ -70,6 +72,6 @@ self.addEventListener("fetch", (event) => {
         void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
       }
       return networkResponse;
-    })(),
+    })()
   );
 });

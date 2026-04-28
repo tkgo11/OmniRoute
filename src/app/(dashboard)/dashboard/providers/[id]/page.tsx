@@ -2730,7 +2730,7 @@ export default function ProviderDetailPage() {
 
       {isCompatible && providerNode && (
         <Card>
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold">
                 {isCcCompatible
@@ -2743,7 +2743,7 @@ export default function ProviderDetailPage() {
                 {getApiLabel()} · {(providerNode.baseUrl || "").replace(/\/$/, "")}/{getApiPath()}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" icon="add" onClick={() => setShowAddApiKeyModal(true)}>
                 {t("add")}
               </Button>
@@ -2788,6 +2788,16 @@ export default function ProviderDetailPage() {
               </Button>
             </div>
           </div>
+          {isCcCompatible && (
+            <div className="mb-4 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-text-muted">
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined mt-0.5 text-[18px] text-amber-500">
+                  warning
+                </span>
+                <p>{t("ccCompatibleValidationHint")}</p>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -5869,6 +5879,16 @@ function AddApiKeyModal({
       onClose={onClose}
     >
       <div className="flex flex-col gap-4">
+        {isCcCompatible && (
+          <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-text-muted">
+            <div className="flex items-start gap-2">
+              <span className="material-symbols-outlined mt-0.5 text-[18px] text-amber-500">
+                warning
+              </span>
+              <p>{t("ccCompatibleValidationHint")}</p>
+            </div>
+          </div>
+        )}
         <Input
           label={t("nameLabel")}
           value={formData.name}
@@ -5929,17 +5949,15 @@ function AddApiKeyModal({
             />
           </div>
         )}
-        {isCompatible && (
+        {isCompatible && !isCcCompatible && (
           <p className="text-xs text-text-muted">
-            {isCcCompatible
-              ? t("ccCompatibleValidationHint")
-              : isAnthropic
-                ? t("validationChecksAnthropicCompatible", {
-                    provider: providerName || t("anthropicCompatibleName"),
-                  })
-                : t("validationChecksOpenAiCompatible", {
-                    provider: providerName || t("openaiCompatibleName"),
-                  })}
+            {isAnthropic
+              ? t("validationChecksAnthropicCompatible", {
+                  provider: providerName || t("anthropicCompatibleName"),
+                })
+              : t("validationChecksOpenAiCompatible", {
+                  provider: providerName || t("openaiCompatibleName"),
+                })}
           </p>
         )}
         <button
@@ -6968,6 +6986,16 @@ function EditCompatibleNodeModal({
       onClose={onClose}
     >
       <div className="flex flex-col gap-4">
+        {isCcCompatible && (
+          <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-text-muted">
+            <div className="flex items-start gap-2">
+              <span className="material-symbols-outlined mt-0.5 text-[18px] text-amber-500">
+                warning
+              </span>
+              <p>{t("ccCompatibleValidationHint")}</p>
+            </div>
+          </div>
+        )}
         <Input
           label={t("nameLabel")}
           value={formData.name}
