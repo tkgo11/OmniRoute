@@ -29,6 +29,7 @@
 
 ### 🛠️ Maintenance
 
+- **workflow:** add phase 4 release monitoring instructions to `/generate-release` workflow
 - **test:** fix typescript compilation errors in unit tests to keep CI typecheck pipeline fully green
 - **test:** update responses store expectations for empty input arrays
 
