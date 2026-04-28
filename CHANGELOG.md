@@ -6,8 +6,15 @@
 
 ## [3.7.4] — 2026-04-28
 
+### ✨ New Features
+
+- **feat(proxy):** implement bulk proxy import via pipe-delimited parser with update-or-create (upsert) logic and real-time preview table
+
 ### 🐛 Bug Fixes
 
+- **fix(codex):** preserve `previous_response_id` and `conversation_id` fields when input array is empty to prevent schema validation errors (#1729)
+- **fix(searxng):** bypass UI validation block when `apiKeyOptional` is true and fix typing errors in provider dashboard to allow saving search providers without credentials (#1721)
+- **fix(proxy):** disable HTTP keep-alive and pipelining in Undici proxy dispatcher to prevent "Socket hang up" rotation failures
 - **stream:** correctly identify `thought` and `error` blocks in Antigravity/Gemini SSE streams to prevent premature 502 timeouts (#1725, #1705)
 
 ---
