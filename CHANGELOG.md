@@ -4,6 +4,14 @@
 
 ---
 
+## [3.7.4] — 2026-04-28
+
+### 🐛 Bug Fixes
+
+- **stream:** correctly identify `thought` and `error` blocks in Antigravity/Gemini SSE streams to prevent premature 502 timeouts (#1725, #1705)
+
+---
+
 ## [3.7.3] — 2026-04-28
 
 ### 🐛 Bug Fixes
