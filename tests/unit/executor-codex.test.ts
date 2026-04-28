@@ -274,7 +274,7 @@ test("CodexExecutor.transformRequest preserves store-enabled responses state whe
 
   assert.equal(result._omnirouteResponsesStore, undefined);
   assert.equal(result.store, true);
-  assert.equal(result.previous_response_id, undefined);
+  assert.equal(result.previous_response_id, "resp_prev_123");
 });
 
 test("CodexExecutor.transformRequest applies per-connection reasoning and service tier defaults", () => {
