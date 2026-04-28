@@ -29,11 +29,6 @@ async function resetStorage() {
   fs.mkdirSync(TEST_DATA_DIR, { recursive: true });
 }
 
-async function createProviderConnectionId(data: Record<string, unknown>) {
-  const connection = await providersDb.createProviderConnection(data);
-  return typeof connection === "string" ? connection : (connection as any)?.id;
-}
-
 test.beforeEach(async () => {
   await resetStorage();
 });
@@ -68,11 +63,12 @@ test("chatCore integration: compressContext called proactively when context exce
   };
 
   // Create provider connection
-  const connectionId = await createProviderConnectionId({
+  const connection = await providersDb.createProviderConnection({
     provider,
     apiKey: "test-key",
     isActive: true,
   });
+  const connectionId = connection.id;
 
   // Mock fetch to capture the request
   let capturedBody: any = null;
@@ -145,11 +141,12 @@ test("chatCore integration: compressContext NOT called when context is below 85%
   );
 
   // Create provider connection
-  const connectionId = await createProviderConnectionId({
+  const connection = await providersDb.createProviderConnection({
     provider,
     apiKey: "test-key",
     isActive: true,
   });
+  const connectionId = connection.id;
 
   // Mock fetch to capture the request
   let capturedBody: any = null;
@@ -214,11 +211,12 @@ test("chatCore integration: compression preserves message structure", async () =
   };
 
   // Create provider connection
-  const connectionId = await createProviderConnectionId({
+  const connection = await providersDb.createProviderConnection({
     provider,
     apiKey: "test-key",
     isActive: true,
   });
+  const connectionId = connection.id;
 
   // Mock fetch to capture the request
   let capturedBody: any = null;
@@ -286,11 +284,12 @@ test("chatCore integration: compression handles tool messages", async () => {
   };
 
   // Create provider connection
-  const connectionId = await createProviderConnectionId({
+  const connection = await providersDb.createProviderConnection({
     provider,
     apiKey: "test-key",
     isActive: true,
   });
+  const connectionId = connection.id;
 
   // Mock fetch to capture the request
   let capturedBody: any = null;
@@ -342,11 +341,12 @@ test("chatCore integration: combo requests run proactive compression before Kiro
   const provider = "kiro";
   const model = "claude-sonnet-4.5";
 
-  const connectionId = await createProviderConnectionId({
+  const connection = await providersDb.createProviderConnection({
     provider,
     apiKey: "test-key",
     isActive: true,
   });
+  const connectionId = connection.id;
 
   await combosDb.createCombo({
     name: "test-kiro-compression-combo",
