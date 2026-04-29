@@ -4,6 +4,19 @@
 
 ---
 
+## [3.7.5] — 2026-04-29
+
+### ✨ New Features
+
+- **feat(tunnels):** integrate native ngrok tunnel support with dashboard UI parity (#1753)
+
+### 🐛 Bug Fixes
+
+- **fix(models):** apply blocked providers filter to non-chat catalog models (image, embedding, audio, etc.) (#1752)
+- **fix(antigravity):** stabilize streaming payload parsing and deduplicate usage/model metadata refreshes (#1748)
+
+---
+
 ## [3.7.4] — 2026-04-28
 
 ### ✨ New Features
