@@ -4,6 +4,7 @@
 
 ### 🐛 Bug Fixes
 
+- **fix(models):** apply blocked providers filter to non-chat catalog models (image, embedding, audio, etc.) (#1752)
 - **fix(antigravity):** stabilize streaming payload parsing and deduplicate usage/model metadata refreshes (#1748)
 
 ---
