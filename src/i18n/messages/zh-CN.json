@@ -1826,6 +1826,7 @@
     "disableCloud": "禁用云端",
     "enableCloud": "启用云端",
     "modelsAcrossEndpoints": "{endpoints} 个端点共提供 {models} 个模型",
+    "loadingModels": "正在加载可用模型...",
     "chatDesc": "支持所有提供商的流式与非流式聊天",
     "embeddings": "Embeddings",
     "embeddingsDesc": "用于搜索和 RAG 流程的文本向量",
