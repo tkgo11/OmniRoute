@@ -20,6 +20,8 @@
 - **fix(codex):** improve VS Code Copilot /responses reasoning and tool follow-ups (#1750)
 - **fix(memory):** resolve build issues and implement memory UPSERT logic to prevent duplicate entries (#1763)
 - **fix(kiro):** support organization IDC OAuth with regional endpoints and refresh (#1754)
+- **fix(combo):** include 429 in provider circuit breaker to stop infinite retry loops on exhausted quotas (#1767)
+- **fix(claude):** respect client-set thinking/effort params — only inject adaptive thinking and high effort when the client hasn't explicitly set them, preventing forced quota drain on Claude Max accounts (#1761)
 
 ### 🛠️ Maintenance
 
