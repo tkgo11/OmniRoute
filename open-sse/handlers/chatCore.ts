@@ -3542,7 +3542,8 @@ export async function handleChatCore({
       body,
       onStreamComplete,
       apiKeyInfo,
-      handleStreamFailure
+      handleStreamFailure,
+      clientResponseFormat
     );
   }
 
