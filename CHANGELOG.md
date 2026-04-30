@@ -9,12 +9,30 @@
 ### ✨ New Features
 
 - **feat(api-keys):** add rename support in the permissions modal — editable key name field with validation (#1796)
+- **feat(chatgpt-web):** support `thinking_effort` parameter (Standard/Extended) for thinking-capable models (#1821)
+- **feat(dashboard):** implement remaining v3.7.6 dashboard features — Costs overview, Translator pipeline, and Endpoint tabs improvements
+- **feat(tools):** inject fallback tool names to prevent upstream 400 errors on providers that require tool names (#1775)
+- **feat(db):** auto-restore probe-failed database on startup to prevent data loss after failed upgrades (#1810)
+
+### 🔒 Security
+
+- **fix(security):** resolve ReDoS vulnerability in Codex executor regex patterns (#1797, #1789)
 
 ### 🐛 Bug Fixes
 
 - **fix(stability):** resolve codex input validation, enable combo circuit breaker, and fix broken unit tests (#1804, #1805)
-- **fix(stability):** safely cast inputs to strings before calling trim() to avoid crashes on numeric fields in proxy modal (#1825)
-- **fix(stability):** auto-restore probe-failed database to prevent data loss (#1810)
+- **fix(stability):** safely cast inputs to strings before calling `.trim()` to avoid crashes on numeric fields in proxy modal (#1825)
+- **fix(stability):** clear active requests and recover providers after connection failures (#1824)
+- **fix(xiaomi-mimo):** update models to V2.5, fix Token Plan validation and default region (#1823)
+- **fix(codex):** omit compact client metadata to prevent upstream rejections (#1822)
+- **fix(dashboard):** fix endpoint visibility, A2A status display, and API catalog consistency (#1806)
+- **fix(analytics):** use pure SQL aggregations — no history rows loaded into memory (#1802)
+- **fix(dashboard):** correct `loadPresets` ReferenceError in CostOverviewTab
+
+### 🧹 Chores
+
+- **chore(workflow):** mandate implementation plan generation in `/resolve-issues` workflow before coding
+- **chore(release):** expand contributor credits to 155 PRs across full project history
 
 ### 🏆 Community Contributors Acknowledgment
 
@@ -85,7 +103,6 @@ We identified that **155 community PRs** across the entire project history (from
 ### ✨ New Features
 
 - **feat(tunnels):** integrate native ngrok tunnel support with dashboard UI parity (#1753)
-- **feat(api-keys):** add rename support in the permissions modal — editable key name field with validation (#1796)
 
 ### 🐛 Bug Fixes
 
