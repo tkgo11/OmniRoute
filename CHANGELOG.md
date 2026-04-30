@@ -4,7 +4,7 @@
 
 ### ✨ New Features
 
-- **feat(api-keys):** add rename support in the permissions modal — editable key name field with validation
+- **feat:** ongoing development
 
 ---
 
@@ -13,6 +13,7 @@
 ### ✨ New Features
 
 - **feat(tunnels):** integrate native ngrok tunnel support with dashboard UI parity (#1753)
+- **feat(api-keys):** add rename support in the permissions modal — editable key name field with validation (#1796)
 
 ### 🐛 Bug Fixes
 
@@ -21,6 +22,8 @@
 - **fix(chatgpt-web):** restore validator + expand model catalog to ChatGPT Plus tier (#1792)
 - **fix(codex):** stabilize Copilot responses replay state (#1791)
 - **fix(antigravity):** cap Claude bridge output tokens (#1785)
+- **fix(schema):** strip `default` properties from tool-call JSON schemas during egress to prevent injection errors (#1782)
+- **fix(db):** add `quota_snapshots` table to core DB schema initialization to prevent startup failures on fresh installs
 - **fix(models):** apply blocked providers filter to non-chat catalog models (image, embedding, audio, etc.) (#1752)
 - **fix(antigravity):** stabilize streaming payload parsing and deduplicate usage/model metadata refreshes (#1748)
 - **fix(antigravity):** normalize Gemini bridge payloads — sanitize tool names, cap output tokens, and fix thinking budget (#1769)
