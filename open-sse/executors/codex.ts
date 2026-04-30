@@ -481,7 +481,13 @@ function stripStoredItemReferences(body: Record<string, unknown>): void {
   // Codex rejects previous_response_id for passthrough requests.
   delete body.previous_response_id;
   if (Array.isArray(body.input) && body.input.length === 0) {
-    delete body.input;
+    body.input = [
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "continue" }],
+      },
+    ];
   }
 
   if (!Array.isArray(body.input)) return;
