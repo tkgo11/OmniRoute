@@ -13,6 +13,7 @@
 - **feat(dashboard):** implement remaining v3.7.6 dashboard features — Costs overview, Translator pipeline, and Endpoint tabs improvements
 - **feat(tools):** inject fallback tool names to prevent upstream 400 errors on providers that require tool names (#1775)
 - **feat(db):** auto-restore probe-failed database on startup to prevent data loss after failed upgrades (#1810)
+- **feat(analytics):** add cost-based usage insights and activity streaks in the analytics dashboard
 
 ### 🔒 Security
 
@@ -28,6 +29,7 @@
 - **fix(dashboard):** fix endpoint visibility, A2A status display, and API catalog consistency (#1806)
 - **fix(analytics):** use pure SQL aggregations — no history rows loaded into memory (#1802)
 - **fix(dashboard):** correct `loadPresets` ReferenceError in CostOverviewTab
+- **fix(mitm):** enforce transparent interception on port 443 only
 
 ### 🧹 Chores
 
