@@ -878,7 +878,7 @@ test(
         const restartedCore = await importFresh("src/lib/db/core.ts");
         assert.throws(
           () => restartedCore.getDbInstance(),
-          /Manual recovery required before startup/i
+          /Manual recovery required after probe failure/i
         );
         assert.equal(fs.existsSync(sqliteFile), false);
         core.resetDbInstance();
