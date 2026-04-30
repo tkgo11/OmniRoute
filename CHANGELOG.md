@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### ✨ New Features
+
+- **feat(api-keys):** add rename support in the permissions modal — editable key name field with validation
+
 ---
 
 ## [3.7.5] — 2026-04-29
