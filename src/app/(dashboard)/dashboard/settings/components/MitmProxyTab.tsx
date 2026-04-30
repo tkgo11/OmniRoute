@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Card } from "@/shared/components";
 
+const TRANSPARENT_MITM_PORT = 443;
+
 type MitmTargetRoute = {
   id: string;
   name: string;
@@ -80,7 +82,7 @@ export default function MitmProxyTab() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || t("loadFailed"));
       setStatus(data);
-      setPort(String(data.port || 443));
+      setPort(String(TRANSPARENT_MITM_PORT));
       setFeedback(null);
     } catch (error) {
       setFeedback({
@@ -108,7 +110,7 @@ export default function MitmProxyTab() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || t("saveFailed"));
       setStatus(data);
-      setPort(String(data.port || 443));
+      setPort(String(TRANSPARENT_MITM_PORT));
       setFeedback({ type: "success", message: successMessage });
     } catch (error) {
       setFeedback({
@@ -122,18 +124,19 @@ export default function MitmProxyTab() {
 
   const savePort = () => {
     const parsedPort = Number.parseInt(port, 10);
-    if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
+    if (parsedPort !== TRANSPARENT_MITM_PORT) {
       setFeedback({ type: "error", message: t("invalidPort") });
+      setPort(String(TRANSPARENT_MITM_PORT));
       return;
     }
-    void updateMitm({ port: parsedPort }, t("settingsSaved"));
+    void updateMitm({ port: TRANSPARENT_MITM_PORT }, t("settingsSaved"));
   };
 
   const toggleMitm = () => {
     void updateMitm(
       {
         enabled: !status.running,
-        port: Number.parseInt(port, 10) || 443,
+        port: TRANSPARENT_MITM_PORT,
         apiKey: String(apiKey || "").trim() || undefined,
         sudoPassword: sudoPassword || undefined,
       },
@@ -240,7 +243,7 @@ export default function MitmProxyTab() {
                 </span>
                 <input
                   value={port}
-                  onChange={(event) => setPort(event.target.value)}
+                  readOnly
                   disabled={status.running}
                   className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-main focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
                 />

@@ -34,6 +34,8 @@ type MitmConfig = {
 };
 
 const DEFAULT_PORT = 443;
+const MITM_PORT_ERROR =
+  "Transparent MITM interception currently requires port 443 because DNS override does not redirect destination ports.";
 
 const updateMitmSchema = z.object({
   enabled: z.boolean().optional(),
@@ -92,17 +94,10 @@ function defaultTargets(port = DEFAULT_PORT): MitmTargetRoute[] {
 
 function readConfig(): MitmConfig {
   try {
-    const raw = JSON.parse(fs.readFileSync(getConfigPath(), "utf8"));
-    const port =
-      typeof raw.port === "number" &&
-      Number.isInteger(raw.port) &&
-      raw.port > 0 &&
-      raw.port <= 65535
-        ? raw.port
-        : DEFAULT_PORT;
+    JSON.parse(fs.readFileSync(getConfigPath(), "utf8"));
     return {
-      port,
-      targets: defaultTargets(port),
+      port: DEFAULT_PORT,
+      targets: defaultTargets(DEFAULT_PORT),
     };
   } catch {
     return {
@@ -112,10 +107,10 @@ function readConfig(): MitmConfig {
   }
 }
 
-function writeConfig(config: MitmConfig) {
+function writeConfig() {
   const mitmDir = getMitmDir();
   fs.mkdirSync(mitmDir, { recursive: true });
-  fs.writeFileSync(getConfigPath(), JSON.stringify({ port: config.port }, null, 2));
+  fs.writeFileSync(getConfigPath(), JSON.stringify({ port: DEFAULT_PORT }, null, 2));
 }
 
 function readStats(): MitmStats {
@@ -197,10 +192,14 @@ export async function PUT(request: Request) {
     }
 
     const config = readConfig();
-    if (parsed.data.port) {
-      config.port = parsed.data.port;
+    if (parsed.data.port !== undefined && parsed.data.port !== DEFAULT_PORT) {
+      return NextResponse.json({ error: MITM_PORT_ERROR }, { status: 400 });
+    }
+
+    if (parsed.data.port !== undefined) {
+      config.port = DEFAULT_PORT;
       config.targets = defaultTargets(config.port);
-      writeConfig(config);
+      writeConfig();
     }
 
     if (typeof parsed.data.enabled === "boolean") {

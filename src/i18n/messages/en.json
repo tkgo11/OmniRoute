@@ -2445,7 +2445,7 @@
     "stoppedSuccess": "MITM proxy stopped.",
     "saveFailed": "Failed to update MITM settings.",
     "loadFailed": "Failed to load MITM settings.",
-    "invalidPort": "Port must be between 1 and 65535.",
+    "invalidPort": "Transparent MITM interception currently requires port 443.",
     "certificate": "CA Certificate",
     "certificateReady": "Certificate is available for client trust installation.",
     "certificateMissing": "Certificate has not been generated yet.",
