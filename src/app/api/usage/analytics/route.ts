@@ -393,14 +393,15 @@ export async function GET(request) {
           const short = shortModelName(m);
           const inputTokens = Number(row.promptTokens) || 0;
           const outputTokens = Number(row.completionTokens) || 0;
-          
+
           try {
             const modelPricing = pricingByProvider[p]?.[m] || pricingByProvider[p]?.[short];
             if (modelPricing && typeof modelPricing === "object") {
               const mp = modelPricing as Record<string, unknown>;
               const inputPrice = Number(mp.input) || 0;
               const outputPrice = Number(mp.output) || 0;
-              presetTotalCost += (inputTokens * inputPrice + outputTokens * outputPrice) / 1_000_000;
+              presetTotalCost +=
+                (inputTokens * inputPrice + outputTokens * outputPrice) / 1_000_000;
             }
           } catch {}
         }
