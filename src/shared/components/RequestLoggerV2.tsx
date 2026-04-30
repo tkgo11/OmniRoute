@@ -735,7 +735,10 @@ export default function RequestLoggerV2() {
                               }
                               title={
                                 log.requestedModel !== log.model
-                                  ? `Requested ${log.requestedModel}, routed as ${log.model}`
+                                  ? t("requestedRoutedTitle", {
+                                      requested: log.requestedModel,
+                                      routed: log.model,
+                                    })
                                   : log.requestedModel
                               }
                             >

@@ -259,7 +259,7 @@ export default function CostOverviewTab() {
       }
     }
 
-    void loadPresets();
+    void loadRange();
 
     return () => {
       active = false;

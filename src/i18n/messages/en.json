@@ -5037,6 +5037,7 @@
     "semanticCacheHit": "Semantic cache hit (served by OmniRoute)",
     "upstreamResponse": "Upstream provider response",
     "noApiKey": "No API key",
+    "requestedRoutedTitle": "Requested {requested}, routed as {routed}",
     "statusFilters": {
       "all": "All",
       "error": "Errors",
