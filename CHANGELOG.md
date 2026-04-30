@@ -10,6 +10,10 @@
 
 - **feat(api-keys):** add rename support in the permissions modal — editable key name field with validation (#1796)
 
+### 🐛 Bug Fixes
+
+- **fix(stability):** resolve codex input validation, enable combo circuit breaker, and fix broken unit tests (#1804, #1805)
+
 ### 🏆 Community Contributors Acknowledgment
 
 We identified that **155 community PRs** across the entire project history (from inception through v3.7.5) were manually integrated into release branches but closed instead of properly merged through GitHub, preventing contributors from receiving merge credit on their profiles. We sincerely apologize for this oversight and have since updated our workflows to ensure this never happens again.
