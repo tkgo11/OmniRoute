@@ -15,6 +15,7 @@ import { getTaskManager } from "@/lib/a2a/taskManager";
 import { logRoutingDecision } from "@/lib/a2a/routingLogger";
 import { createA2AStream, SSE_HEADERS } from "@/lib/a2a/streaming";
 import { A2A_SKILL_HANDLERS, executeA2ATaskWithState } from "@/lib/a2a/taskExecution";
+import { getSettings } from "@/lib/db/settings";
 
 type A2AMessage = { role: string; content: string };
 
@@ -86,6 +87,22 @@ function jsonRpcResult(id: string | number | null, result: unknown) {
   return NextResponse.json({ jsonrpc: "2.0", id, result });
 }
 
+async function rejectIfA2ADisabled(id: string | number | null) {
+  const settings = await getSettings();
+  if (settings.a2aEnabled === true) return null;
+  return NextResponse.json(
+    {
+      jsonrpc: "2.0",
+      id,
+      error: {
+        code: -32000,
+        message: "A2A endpoint is disabled. Enable it from the Endpoints page.",
+      },
+    },
+    { status: 503 }
+  );
+}
+
 // ============ Route Handler ============
 
 export async function POST(req: NextRequest) {
@@ -106,6 +123,9 @@ export async function POST(req: NextRequest) {
   if (jsonrpc !== "2.0" || !method) {
     return jsonRpcError(id || null, -32600, "Invalid request: missing jsonrpc or method");
   }
+
+  const disabledResponse = await rejectIfA2ADisabled(id ?? null);
+  if (disabledResponse) return disabledResponse;
 
   const tm = getTaskManager();
 
