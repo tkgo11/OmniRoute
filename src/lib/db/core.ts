@@ -1020,11 +1020,20 @@ export function getDbInstance(): SqliteDatabase {
   const jsonDbFile = JSON_DB_FILE;
   const probeFailureBackups = listProbeFailureBackups(sqliteFile);
   if (!fs.existsSync(sqliteFile) && probeFailureBackups.length > 0) {
-    throw new Error(
-      `[DB] Manual recovery required before startup. ` +
-        `Detected preserved database from a previous probe failure: ${probeFailureBackups[0]}. ` +
-        `Restore the preserved file or another backup to ${sqliteFile} before restarting.`
-    );
+    const latestBackup = probeFailureBackups[0];
+    try {
+      fs.renameSync(latestBackup, sqliteFile);
+      console.log(
+        `[DB] Auto-restored preserved database from previous probe failure: ${path.basename(latestBackup)}`
+      );
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `[DB] Manual recovery required before startup. ` +
+          `Failed to auto-restore preserved database ${latestBackup}: ${msg}. ` +
+          `Restore the preserved file or another backup to ${sqliteFile} before restarting.`
+      );
+    }
   }
 
   let preservedCriticalState: PreservedCriticalDbState = {
