@@ -172,7 +172,7 @@ export default function ProxyConfigModal({
       setFormError(t("errorSelectSavedProxy"));
       return;
     }
-    if (mode === "custom" && !host.trim()) return;
+    if (mode === "custom" && !String(host || "").trim()) return;
     setFormError(null);
     setSaving(true);
     try {
@@ -212,10 +212,10 @@ export default function ProxyConfigModal({
 
         const proxy = {
           type: proxyType,
-          host: host.trim(),
-          port: port.trim() || getDefaultPort(proxyType),
-          username: username.trim(),
-          password: password.trim(),
+          host: String(host || "").trim(),
+          port: String(port || "").trim() || getDefaultPort(proxyType),
+          username: String(username || "").trim(),
+          password: String(password || "").trim(),
         };
         res = await fetch("/api/settings/proxy", {
           method: "PUT",
@@ -310,16 +310,16 @@ export default function ProxyConfigModal({
           port: String(found.port || 8080),
         };
       } else {
-        if (!host.trim()) {
+        if (!String(host || "").trim()) {
           setTesting(false);
           return;
         }
         proxy = {
           type: proxyType,
-          host: host.trim(),
-          port: port.trim() || getDefaultPort(proxyType),
-          username: username.trim(),
-          password: password.trim(),
+          host: String(host || "").trim(),
+          port: String(port || "").trim() || getDefaultPort(proxyType),
+          username: String(username || "").trim(),
+          password: String(password || "").trim(),
         };
       }
 
@@ -570,7 +570,7 @@ export default function ProxyConfigModal({
                 icon="speed"
                 onClick={handleTest}
                 loading={testing}
-                disabled={mode === "saved" ? !selectedProxyId : !host.trim()}
+                disabled={mode === "saved" ? !selectedProxyId : !String(host || "").trim()}
               >
                 {t("testConnection")}
               </Button>
@@ -596,7 +596,7 @@ export default function ProxyConfigModal({
                 icon="save"
                 onClick={handleSave}
                 loading={saving}
-                disabled={mode === "saved" ? !selectedProxyId : !host.trim()}
+                disabled={mode === "saved" ? !selectedProxyId : !String(host || "").trim()}
               >
                 {t("save")}
               </Button>

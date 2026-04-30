@@ -134,7 +134,7 @@ export default function MitmProxyTab() {
       {
         enabled: !status.running,
         port: Number.parseInt(port, 10) || 443,
-        apiKey: apiKey.trim() || undefined,
+        apiKey: String(apiKey || "").trim() || undefined,
         sudoPassword: sudoPassword || undefined,
       },
       status.running ? t("stoppedSuccess") : t("startedSuccess")
