@@ -312,6 +312,13 @@ function createRecoverableDb(sqliteFile) {
   seedDb.close();
 }
 
+function createLegacySchemaDbWithName(sqliteFile, name) {
+  createLegacySchemaDb(sqliteFile, { withData: true });
+  const db = new Database(sqliteFile);
+  db.prepare("UPDATE provider_connections SET name = ? WHERE id = ?").run(name, "legacy-openai");
+  db.close();
+}
+
 function listProbeFailedBackups(sqliteFile) {
   const directory = path.dirname(sqliteFile);
   const prefix = `${path.basename(sqliteFile)}.probe-failed-`;
@@ -854,6 +861,51 @@ test(
       });
     } finally {
       Database.prototype.prepare = originalPrepare;
+      removePath(dataDir);
+    }
+  }
+);
+
+test(
+  "auto-restore picks latest probe-failed timestamp instead of latest mtime",
+  serial,
+  async () => {
+    const dataDir = makeTempDir("omniroute-db-probe-latest-");
+    const sqliteFile = path.join(dataDir, "storage.sqlite");
+    const olderBackup = `${sqliteFile}.probe-failed-1000`;
+    const newerBackup = `${sqliteFile}.probe-failed-2000`;
+
+    createLegacySchemaDbWithName(olderBackup, "Older Backup");
+    createLegacySchemaDbWithName(newerBackup, "Newer Backup");
+    fs.utimesSync(
+      olderBackup,
+      new Date("2030-01-01T00:00:00.000Z"),
+      new Date("2030-01-01T00:00:00.000Z")
+    );
+    fs.utimesSync(
+      newerBackup,
+      new Date("2020-01-01T00:00:00.000Z"),
+      new Date("2020-01-01T00:00:00.000Z")
+    );
+
+    try {
+      await withEnv({ DATA_DIR: dataDir }, async () => {
+        const core = await importFresh("src/lib/db/core.ts");
+        const db = core.getDbInstance();
+
+        assert.deepEqual(
+          db
+            .prepare("SELECT id, provider, name FROM provider_connections WHERE id = ?")
+            .get("legacy-openai"),
+          { id: "legacy-openai", provider: "openai", name: "Newer Backup" }
+        );
+        assert.equal(fs.existsSync(sqliteFile), true);
+        assert.equal(fs.existsSync(newerBackup), false);
+        assert.equal(fs.existsSync(olderBackup), true);
+
+        core.resetDbInstance();
+      });
+    } finally {
       removePath(dataDir);
     }
   }

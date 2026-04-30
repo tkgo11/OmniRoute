@@ -13,6 +13,7 @@ const usageHistory = await import("../../src/lib/usage/usageHistory.ts");
 const analyticsRoute = await import("../../src/app/api/usage/analytics/route.ts");
 
 const clearPendingRequests = usageHistory.clearPendingRequests;
+const EXPECTED_TOTAL_COST = 0.020925;
 
 async function resetStorage() {
   core.resetDbInstance();
@@ -27,13 +28,14 @@ async function seedAnalyticsData() {
   for (let i = 0; i < 20; i++) {
     const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000).toISOString();
     db.prepare(
-      `INSERT INTO usage_history (provider, model, connection_id, api_key_id, tokens_input, tokens_output, success, latency_ms, timestamp)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO usage_history (provider, model, connection_id, api_key_id, api_key_name, tokens_input, tokens_output, success, latency_ms, timestamp)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       i % 2 === 0 ? "openai" : "anthropic",
       i % 2 === 0 ? "gpt-4o" : "claude-sonnet",
       "test-conn",
       "test-key",
+      "Primary Key",
       100 + i,
       50 + i,
       1,
@@ -49,6 +51,13 @@ async function seedAnalyticsData() {
 
 function makeRequest(url: string) {
   return new Request(url, { method: "GET" });
+}
+
+function assertClose(actual: number, expected: number, epsilon = 0.000001) {
+  assert.ok(
+    Math.abs(actual - expected) <= epsilon,
+    `expected ${actual} to be within ${epsilon} of ${expected}`
+  );
 }
 
 test.beforeEach(async () => {
@@ -74,11 +83,14 @@ test("GET /api/usage/analytics returns summary with aggregated metrics", async (
   assert.equal(body.summary.totalRequests, 20);
   assert.equal(body.summary.uniqueModels, 2);
   assert.equal(body.summary.uniqueAccounts, 1);
+  assert.equal(body.summary.uniqueApiKeys, 1);
   assert.ok(body.summary.totalTokens > 0);
   assert.ok(body.summary.avgLatencyMs > 0);
+  assertClose(body.summary.totalCost, EXPECTED_TOTAL_COST);
+  assert.ok(body.summary.streak > 0);
 });
 
-test("GET /api/usage/analytics includes dailyTrend array", async () => {
+test("GET /api/usage/analytics includes dailyTrend array with cost data", async () => {
   await seedAnalyticsData();
 
   const response = await analyticsRoute.GET(makeRequest("http://localhost/api/usage/analytics"));
@@ -87,6 +99,9 @@ test("GET /api/usage/analytics includes dailyTrend array", async () => {
   assert.equal(response.status, 200);
   assert.ok(Array.isArray(body.dailyTrend));
   assert.ok(body.dailyTrend.length > 0);
+  assert.ok(body.dailyTrend.every((row) => typeof row.cost === "number"));
+  const dailyCostTotal = body.dailyTrend.reduce((sum, row) => sum + row.cost, 0);
+  assertClose(dailyCostTotal, body.summary.totalCost);
 });
 
 test("GET /api/usage/analytics includes byModel array with cost calculations", async () => {
@@ -101,6 +116,7 @@ test("GET /api/usage/analytics includes byModel array with cost calculations", a
   const gptEntry = body.byModel.find((m) => m.model === "4o" && m.provider === "openai");
   assert.ok(gptEntry);
   assert.ok(typeof gptEntry.cost === "number");
+  assert.ok(gptEntry.cost > 0);
 });
 
 test("GET /api/usage/analytics filters by range parameter", async () => {
@@ -115,7 +131,7 @@ test("GET /api/usage/analytics filters by range parameter", async () => {
   assert.equal(body.range, "1d");
 });
 
-test("GET /api/usage/analytics includes byProvider array", async () => {
+test("GET /api/usage/analytics includes byProvider array with cost data", async () => {
   await seedAnalyticsData();
 
   const response = await analyticsRoute.GET(makeRequest("http://localhost/api/usage/analytics"));
@@ -124,9 +140,12 @@ test("GET /api/usage/analytics includes byProvider array", async () => {
   assert.equal(response.status, 200);
   assert.ok(Array.isArray(body.byProvider));
   assert.ok(body.byProvider.length > 0);
+  assert.ok(body.byProvider.every((row) => typeof row.cost === "number"));
+  const providerCostTotal = body.byProvider.reduce((sum, row) => sum + row.cost, 0);
+  assertClose(providerCostTotal, body.summary.totalCost);
 });
 
-test("GET /api/usage/analytics includes byAccount array", async () => {
+test("GET /api/usage/analytics includes byAccount array with cost data", async () => {
   await seedAnalyticsData();
 
   const response = await analyticsRoute.GET(makeRequest("http://localhost/api/usage/analytics"));
@@ -136,19 +155,38 @@ test("GET /api/usage/analytics includes byAccount array", async () => {
   assert.ok(Array.isArray(body.byAccount));
   assert.ok(body.byAccount.length > 0);
   assert.equal(body.byAccount[0].account, "test-conn");
+  assert.equal(typeof body.byAccount[0].cost, "number");
+  assertClose(body.byAccount[0].cost, body.summary.totalCost);
 });
 
-test("GET /api/usage/analytics returns weeklyTokens and weeklyCounts", async () => {
+test("GET /api/usage/analytics includes cost by API key", async () => {
   await seedAnalyticsData();
 
   const response = await analyticsRoute.GET(makeRequest("http://localhost/api/usage/analytics"));
   const body = await response.json();
 
   assert.equal(response.status, 200);
-  assert.ok(Array.isArray(body.weeklyTokens));
-  assert.equal(body.weeklyTokens.length, 7);
-  assert.ok(Array.isArray(body.weeklyCounts));
-  assert.equal(body.weeklyCounts.length, 7);
+  assert.ok(Array.isArray(body.byApiKey));
+  assert.equal(body.byApiKey.length, 1);
+  assert.equal(body.byApiKey[0].apiKeyId, "test-key");
+  assert.equal(body.byApiKey[0].apiKeyName, "Primary Key");
+  assertClose(body.byApiKey[0].cost, body.summary.totalCost);
+});
+
+test("GET /api/usage/analytics returns weeklyPattern for the costs dashboard", async () => {
+  await seedAnalyticsData();
+
+  const response = await analyticsRoute.GET(makeRequest("http://localhost/api/usage/analytics"));
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.ok(Array.isArray(body.weeklyPattern));
+  assert.equal(body.weeklyPattern.length, 7);
+  assert.deepEqual(
+    body.weeklyPattern.map((row) => row.day),
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+  );
+  assert.ok(body.weeklyPattern.some((row) => row.totalTokens > 0 && row.avgTokens > 0));
 });
 
 test("GET /api/usage/analytics includes activityMap for heatmap", async () => {

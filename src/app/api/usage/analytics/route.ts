@@ -36,6 +36,92 @@ function shortModelName(model: string | null): string {
   return parts[parts.length - 1] || model;
 }
 
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+type PricingByProvider = Record<string, Record<string, Record<string, unknown>>>;
+type ComputeCostFromPricing = (
+  pricing: Record<string, unknown> | null | undefined,
+  tokens: Record<string, number | undefined> | null | undefined
+) => number;
+
+function toNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function toStringValue(value: unknown, fallback = ""): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : fallback;
+}
+
+function roundCost(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
+function appendWhereCondition(whereClause: string, condition: string): string {
+  return whereClause ? `${whereClause} AND (${condition})` : `WHERE (${condition})`;
+}
+
+function resolveModelPricing(
+  pricingByProvider: PricingByProvider,
+  provider: string,
+  model: string,
+  normalizeModelName: (model: string) => string
+): Record<string, unknown> | null {
+  const providerPricing = pricingByProvider[provider];
+  if (!providerPricing) return null;
+
+  const normalizedModel = normalizeModelName(model);
+  const shortModel = shortModelName(model);
+  return (
+    providerPricing[model] ||
+    providerPricing[normalizedModel] ||
+    providerPricing[shortModel] ||
+    null
+  );
+}
+
+function computeUsageRowCost(
+  row: Record<string, unknown>,
+  pricingByProvider: PricingByProvider,
+  normalizeModelName: (model: string) => string,
+  computeCostFromPricing: ComputeCostFromPricing
+): number {
+  const provider = toStringValue(row.provider);
+  const model = toStringValue(row.model);
+  if (!provider || !model) return 0;
+
+  const pricing = resolveModelPricing(pricingByProvider, provider, model, normalizeModelName);
+  if (!pricing) return 0;
+
+  return computeCostFromPricing(pricing, {
+    input: toNumber(row.promptTokens),
+    output: toNumber(row.completionTokens),
+    cacheRead: toNumber(row.cacheReadTokens),
+    cacheCreation: toNumber(row.cacheCreationTokens),
+    reasoning: toNumber(row.reasoningTokens),
+  });
+}
+
+function formatUtcDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function computeActivityStreak(activityMap: Record<string, number>): number {
+  const cursor = new Date();
+  let streak = 0;
+
+  while ((activityMap[formatUtcDate(cursor)] || 0) > 0) {
+    streak += 1;
+    cursor.setUTCDate(cursor.getUTCDate() - 1);
+  }
+
+  return streak;
+}
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -49,8 +135,9 @@ export async function GET(request) {
 
     // Fetch pricing data for cost calculation (no rows loaded)
     const { getPricing } = await import("@/lib/db/settings");
-    const pricingByProvider = await getPricing();
-    const { normalizeModelName } = await import("@/lib/usage/costCalculator");
+    const pricingByProvider = (await getPricing()) as PricingByProvider;
+    const { computeCostFromPricing, normalizeModelName } =
+      await import("@/lib/usage/costCalculator");
 
     const summaryRow = db
       .prepare(
@@ -90,11 +177,28 @@ export async function GET(request) {
       )
       .all(params) as Array<Record<string, unknown>>;
 
-    // Use requested range for heatmap if available, else default to 364 days (1 year) as fallback
-    const heatmapStart = sinceIso ? new Date(sinceIso) : new Date();
-    if (!sinceIso) {
-      heatmapStart.setDate(heatmapStart.getDate() - 364);
-    }
+    const dailyCostRows = db
+      .prepare(
+        `
+        SELECT
+          DATE(timestamp) as date,
+          provider,
+          model,
+          COALESCE(SUM(tokens_input), 0) as promptTokens,
+          COALESCE(SUM(tokens_output), 0) as completionTokens,
+          COALESCE(SUM(tokens_cache_read), 0) as cacheReadTokens,
+          COALESCE(SUM(tokens_cache_creation), 0) as cacheCreationTokens,
+          COALESCE(SUM(tokens_reasoning), 0) as reasoningTokens
+        FROM usage_history
+        ${whereClause}
+        GROUP BY DATE(timestamp), provider, model
+        ORDER BY date ASC
+      `
+      )
+      .all(params) as Array<Record<string, unknown>>;
+
+    const heatmapStart = new Date();
+    heatmapStart.setUTCDate(heatmapStart.getUTCDate() - 364);
     const heatmapRows = db
       .prepare(
         `
@@ -118,6 +222,9 @@ export async function GET(request) {
           COUNT(*) as requests,
           COALESCE(SUM(tokens_input), 0) as promptTokens,
           COALESCE(SUM(tokens_output), 0) as completionTokens,
+          COALESCE(SUM(tokens_cache_read), 0) as cacheReadTokens,
+          COALESCE(SUM(tokens_cache_creation), 0) as cacheCreationTokens,
+          COALESCE(SUM(tokens_reasoning), 0) as reasoningTokens,
           COALESCE(SUM(tokens_input + tokens_output), 0) as totalTokens,
           COALESCE(AVG(latency_ms), 0) as avgLatencyMs,
           COALESCE(SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END), 0) as successfulRequests,
@@ -127,6 +234,24 @@ export async function GET(request) {
         GROUP BY model, provider
         ORDER BY requests DESC
         LIMIT 50
+      `
+      )
+      .all(params) as Array<Record<string, unknown>>;
+
+    const providerCostRows = db
+      .prepare(
+        `
+        SELECT
+          provider,
+          model,
+          COALESCE(SUM(tokens_input), 0) as promptTokens,
+          COALESCE(SUM(tokens_output), 0) as completionTokens,
+          COALESCE(SUM(tokens_cache_read), 0) as cacheReadTokens,
+          COALESCE(SUM(tokens_cache_creation), 0) as cacheCreationTokens,
+          COALESCE(SUM(tokens_reasoning), 0) as reasoningTokens
+        FROM usage_history
+        ${whereClause}
+        GROUP BY provider, model
       `
       )
       .all(params) as Array<Record<string, unknown>>;
@@ -146,6 +271,25 @@ export async function GET(request) {
         ${whereClause}
         GROUP BY provider
         ORDER BY requests DESC
+      `
+      )
+      .all(params) as Array<Record<string, unknown>>;
+
+    const accountCostRows = db
+      .prepare(
+        `
+        SELECT
+          connection_id as account,
+          provider,
+          model,
+          COALESCE(SUM(tokens_input), 0) as promptTokens,
+          COALESCE(SUM(tokens_output), 0) as completionTokens,
+          COALESCE(SUM(tokens_cache_read), 0) as cacheReadTokens,
+          COALESCE(SUM(tokens_cache_creation), 0) as cacheCreationTokens,
+          COALESCE(SUM(tokens_reasoning), 0) as reasoningTokens
+        FROM usage_history
+        ${whereClause}
+        GROUP BY connection_id, provider, model
       `
       )
       .all(params) as Array<Record<string, unknown>>;
@@ -170,16 +314,51 @@ export async function GET(request) {
       )
       .all(params) as Array<Record<string, unknown>>;
 
+    const apiKeyWhereClause = appendWhereCondition(
+      whereClause,
+      "(api_key_id IS NOT NULL AND api_key_id != '') OR (api_key_name IS NOT NULL AND api_key_name != '')"
+    );
+    const apiKeyRows = db
+      .prepare(
+        `
+        SELECT
+          api_key_id as apiKeyId,
+          COALESCE(NULLIF(api_key_name, ''), NULLIF(api_key_id, ''), 'Unknown API key') as apiKeyName,
+          provider,
+          model,
+          COUNT(*) as requests,
+          COALESCE(SUM(tokens_input), 0) as promptTokens,
+          COALESCE(SUM(tokens_output), 0) as completionTokens,
+          COALESCE(SUM(tokens_cache_read), 0) as cacheReadTokens,
+          COALESCE(SUM(tokens_cache_creation), 0) as cacheCreationTokens,
+          COALESCE(SUM(tokens_reasoning), 0) as reasoningTokens,
+          COALESCE(SUM(tokens_input + tokens_output), 0) as totalTokens
+        FROM usage_history
+        ${apiKeyWhereClause}
+        GROUP BY api_key_id, api_key_name, provider, model
+      `
+      )
+      .all(params) as Array<Record<string, unknown>>;
+
     const weeklyRows = db
       .prepare(
         `
         SELECT
-          strftime('%w', timestamp) as dayOfWeek,
-          COUNT(*) as requests,
-          COALESCE(SUM(tokens_input + tokens_output), 0) as totalTokens
-        FROM usage_history
-        ${whereClause}
-        GROUP BY strftime('%w', timestamp)
+          dayOfWeek,
+          COUNT(*) as days,
+          COALESCE(SUM(requests), 0) as requests,
+          COALESCE(SUM(totalTokens), 0) as totalTokens
+        FROM (
+          SELECT
+            DATE(timestamp) as date,
+            strftime('%w', timestamp) as dayOfWeek,
+            COUNT(*) as requests,
+            COALESCE(SUM(tokens_input + tokens_output), 0) as totalTokens
+          FROM usage_history
+          ${whereClause}
+          GROUP BY DATE(timestamp), strftime('%w', timestamp)
+        )
+        GROUP BY dayOfWeek
         ORDER BY dayOfWeek ASC
       `
       )
@@ -247,7 +426,21 @@ export async function GET(request) {
               ).toFixed(2)
             )
           : 0,
+      streak: 0,
     };
+
+    const dailyCostByDate = new Map<string, number>();
+    for (const row of dailyCostRows) {
+      const date = toStringValue(row.date);
+      if (!date) continue;
+      const cost = computeUsageRowCost(
+        row,
+        pricingByProvider,
+        normalizeModelName,
+        computeCostFromPricing
+      );
+      dailyCostByDate.set(date, (dailyCostByDate.get(date) || 0) + cost);
+    }
 
     const dailyTrend = dailyRows.map((row) => ({
       date: row.date,
@@ -255,12 +448,14 @@ export async function GET(request) {
       promptTokens: Number(row.promptTokens),
       completionTokens: Number(row.completionTokens),
       totalTokens: Number(row.totalTokens),
+      cost: roundCost(dailyCostByDate.get(toStringValue(row.date)) || 0),
     }));
 
     const activityMap: Record<string, number> = {};
     for (const row of heatmapRows) {
       activityMap[row.date as string] = Number(row.totalTokens);
     }
+    summary.streak = computeActivityStreak(activityMap);
 
     const byModel = modelRows.map((row) => {
       const model = row.model as string;
@@ -270,20 +465,12 @@ export async function GET(request) {
         input: Number(row.promptTokens) || 0,
         output: Number(row.completionTokens) || 0,
       };
-      // Compute cost from pricing and aggregated tokens
-      let cost = 0;
-      try {
-        const modelPricing =
-          pricingByProvider[provider]?.[model] || pricingByProvider[provider]?.[short];
-        if (modelPricing && typeof modelPricing === "object") {
-          const p = modelPricing as Record<string, unknown>;
-          const inputPrice = Number(p.input) || 0;
-          const outputPrice = Number(p.output) || 0;
-          cost = (tokens.input * inputPrice + tokens.output * outputPrice) / 1_000_000;
-        }
-      } catch {
-        /* ignore */
-      }
+      const cost = computeUsageRowCost(
+        row,
+        pricingByProvider,
+        normalizeModelName,
+        computeCostFromPricing
+      );
       return {
         model: short,
         provider,
@@ -298,13 +485,25 @@ export async function GET(request) {
             ? Number((Number(row.successfulRequests) / Number(row.requests)) * 100).toFixed(2)
             : 0,
         lastUsed: row.lastUsed,
-        cost: Math.round(cost * 100) / 100,
+        cost: roundCost(cost),
       };
     });
 
-    // Compute totalCost from byModel sum
-    const totalCost = byModel.reduce((sum, m) => sum + (m.cost || 0), 0);
-    summary.totalCost = Math.round(totalCost * 100) / 100;
+    const totalCost = Array.from(dailyCostByDate.values()).reduce((sum, cost) => sum + cost, 0);
+    summary.totalCost = roundCost(totalCost);
+
+    const providerCostByProvider = new Map<string, number>();
+    for (const row of providerCostRows) {
+      const provider = toStringValue(row.provider);
+      if (!provider) continue;
+      const cost = computeUsageRowCost(
+        row,
+        pricingByProvider,
+        normalizeModelName,
+        computeCostFromPricing
+      );
+      providerCostByProvider.set(provider, (providerCostByProvider.get(provider) || 0) + cost);
+    }
 
     const byProvider = providerRows.map((row) => ({
       provider: row.provider,
@@ -317,25 +516,95 @@ export async function GET(request) {
         Number(row.requests) > 0
           ? Number((Number(row.successfulRequests) / Number(row.requests)) * 100).toFixed(2)
           : 0,
+      cost: roundCost(providerCostByProvider.get(toStringValue(row.provider)) || 0),
     }));
 
+    const accountCostByAccount = new Map<string, number>();
+    for (const row of accountCostRows) {
+      const account = toStringValue(row.account, "unknown");
+      const cost = computeUsageRowCost(
+        row,
+        pricingByProvider,
+        normalizeModelName,
+        computeCostFromPricing
+      );
+      accountCostByAccount.set(account, (accountCostByAccount.get(account) || 0) + cost);
+    }
+
     const byAccount = accountRows.map((row) => ({
-      account: row.account,
+      account: toStringValue(row.account, "unknown"),
       requests: Number(row.requests),
       promptTokens: Number(row.promptTokens),
       completionTokens: Number(row.completionTokens),
       totalTokens: Number(row.totalTokens),
       avgLatencyMs: Math.round(Number(row.avgLatencyMs)),
       lastUsed: row.lastUsed,
+      cost: roundCost(accountCostByAccount.get(toStringValue(row.account, "unknown")) || 0),
     }));
+
+    const apiKeyMap = new Map<
+      string,
+      {
+        apiKey: string;
+        apiKeyId: string | null;
+        apiKeyName: string;
+        requests: number;
+        promptTokens: number;
+        completionTokens: number;
+        totalTokens: number;
+        cost: number;
+      }
+    >();
+    for (const row of apiKeyRows) {
+      const apiKeyId = toStringValue(row.apiKeyId);
+      const apiKeyName = toStringValue(row.apiKeyName, apiKeyId || "Unknown API key");
+      const key = `${apiKeyId || "unknown"}::${apiKeyName}`;
+      const existing = apiKeyMap.get(key) || {
+        apiKey: apiKeyId && apiKeyName !== apiKeyId ? `${apiKeyName} (${apiKeyId})` : apiKeyName,
+        apiKeyId: apiKeyId || null,
+        apiKeyName,
+        requests: 0,
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        cost: 0,
+      };
+
+      existing.requests += Number(row.requests);
+      existing.promptTokens += Number(row.promptTokens);
+      existing.completionTokens += Number(row.completionTokens);
+      existing.totalTokens += Number(row.totalTokens);
+      existing.cost += computeUsageRowCost(
+        row,
+        pricingByProvider,
+        normalizeModelName,
+        computeCostFromPricing
+      );
+      apiKeyMap.set(key, existing);
+    }
+    const byApiKey = Array.from(apiKeyMap.values())
+      .map((row) => ({ ...row, cost: roundCost(row.cost) }))
+      .sort((left, right) => right.cost - left.cost);
 
     const weeklyTokens = [0, 0, 0, 0, 0, 0, 0];
     const weeklyCounts = [0, 0, 0, 0, 0, 0, 0];
+    const weeklyPattern = WEEKDAY_LABELS.map((day) => ({
+      day,
+      avgTokens: 0,
+      totalTokens: 0,
+    }));
     for (const row of weeklyRows) {
       const dayIdx = Number(row.dayOfWeek);
       if (dayIdx >= 0 && dayIdx <= 6) {
-        weeklyTokens[dayIdx] = Number(row.totalTokens);
+        const totalTokens = Number(row.totalTokens);
+        const days = Number(row.days);
+        weeklyTokens[dayIdx] = totalTokens;
         weeklyCounts[dayIdx] = Number(row.requests);
+        weeklyPattern[dayIdx] = {
+          day: WEEKDAY_LABELS[dayIdx],
+          avgTokens: days > 0 ? Math.round(totalTokens / days) : 0,
+          totalTokens,
+        };
       }
     }
 
@@ -345,7 +614,9 @@ export async function GET(request) {
       activityMap,
       byModel,
       byProvider,
+      byApiKey,
       byAccount,
+      weeklyPattern,
       weeklyTokens,
       weeklyCounts,
       range,
@@ -378,7 +649,10 @@ export async function GET(request) {
               model,
               provider,
               COALESCE(SUM(tokens_input), 0) as promptTokens,
-              COALESCE(SUM(tokens_output), 0) as completionTokens
+              COALESCE(SUM(tokens_output), 0) as completionTokens,
+              COALESCE(SUM(tokens_cache_read), 0) as cacheReadTokens,
+              COALESCE(SUM(tokens_cache_creation), 0) as cacheCreationTokens,
+              COALESCE(SUM(tokens_reasoning), 0) as reasoningTokens
             FROM usage_history
             ${presetWhere}
             GROUP BY model, provider
@@ -388,26 +662,16 @@ export async function GET(request) {
 
         let presetTotalCost = 0;
         for (const row of presetModelRows) {
-          const m = row.model as string;
-          const p = row.provider as string;
-          const short = shortModelName(m);
-          const inputTokens = Number(row.promptTokens) || 0;
-          const outputTokens = Number(row.completionTokens) || 0;
-
-          try {
-            const modelPricing = pricingByProvider[p]?.[m] || pricingByProvider[p]?.[short];
-            if (modelPricing && typeof modelPricing === "object") {
-              const mp = modelPricing as Record<string, unknown>;
-              const inputPrice = Number(mp.input) || 0;
-              const outputPrice = Number(mp.output) || 0;
-              presetTotalCost +=
-                (inputTokens * inputPrice + outputTokens * outputPrice) / 1_000_000;
-            }
-          } catch {}
+          presetTotalCost += computeUsageRowCost(
+            row,
+            pricingByProvider,
+            normalizeModelName,
+            computeCostFromPricing
+          );
         }
 
         presetSummaries[presetRange] = {
-          totalCost: Math.round(presetTotalCost * 100) / 100,
+          totalCost: roundCost(presetTotalCost),
         };
       }
 

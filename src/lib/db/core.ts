@@ -627,17 +627,22 @@ function summarizeSkippedTables(tables: SkippedTableSnapshot[]): string {
 function listProbeFailureBackups(sqliteFile: string): string[] {
   const directory = path.dirname(sqliteFile);
   const baseName = path.basename(sqliteFile);
+  const prefix = `${baseName}.probe-failed-`;
   if (!fs.existsSync(directory)) return [];
 
   return fs
     .readdirSync(directory)
-    .filter((name) => name.startsWith(`${baseName}.probe-failed-`))
-    .map((name) => path.join(directory, name))
+    .filter((name) => name.startsWith(prefix))
+    .map((name) => ({
+      path: path.join(directory, name),
+      timestamp: Number(name.slice(prefix.length)),
+    }))
     .sort((left, right) => {
-      const leftMtime = fs.statSync(left).mtimeMs;
-      const rightMtime = fs.statSync(right).mtimeMs;
-      return rightMtime - leftMtime;
-    });
+      const leftTimestamp = Number.isFinite(left.timestamp) ? left.timestamp : 0;
+      const rightTimestamp = Number.isFinite(right.timestamp) ? right.timestamp : 0;
+      return rightTimestamp - leftTimestamp || right.path.localeCompare(left.path);
+    })
+    .map((backup) => backup.path);
 }
 
 function captureCriticalDbState(sqliteFile: string): PreservedCriticalDbState {
