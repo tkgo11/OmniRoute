@@ -13,6 +13,8 @@
 ### 🐛 Bug Fixes
 
 - **fix(stability):** resolve codex input validation, enable combo circuit breaker, and fix broken unit tests (#1804, #1805)
+- **fix(stability):** safely cast inputs to strings before calling trim() to avoid crashes on numeric fields in proxy modal (#1825)
+- **fix(stability):** auto-restore probe-failed database to prevent data loss (#1810)
 
 ### 🏆 Community Contributors Acknowledgment
 
