@@ -281,6 +281,9 @@ export class BaseExecutor {
             if (toolFunction && typeof toolFunction === "object" && !Array.isArray(toolFunction)) {
               const func = { ...(toolFunction as JsonRecord) };
               if (func.description === "") delete func.description;
+              if (typeof func.name !== "string" || func.name.trim() === "") {
+                func.name = "unnamed_tool";
+              }
               return { ...toolRecord, function: func };
             }
           }
