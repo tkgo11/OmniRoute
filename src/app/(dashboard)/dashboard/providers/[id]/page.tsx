@@ -33,6 +33,10 @@ import {
   supportsApiKeyOnFreeProvider,
   supportsBulkApiKey,
 } from "@/shared/constants/providers";
+import {
+  ANTIGRAVITY_CLIENT_PROFILE_OPTIONS,
+  normalizeAntigravityClientProfileSetting,
+} from "@/shared/constants/antigravityClientProfile";
 import { parseBulkApiKeys } from "@/shared/utils/bulkApiKeyParser";
 import { getModelsByProviderId } from "@/shared/constants/models";
 import {
@@ -9071,6 +9075,7 @@ function EditConnectionModal({ isOpen, connection, onSave, onClose }: EditConnec
     consoleApiKey: "",
     ccCompatibleContext1m: false,
     cloudCodeProjectId: "",
+    antigravityClientProfile: "ide",
     blockExtraUsage:
       connection?.provider === "claude"
         ? isClaudeExtraUsageBlockEnabled(connection?.provider, connection?.providerSpecificData)
@@ -9173,6 +9178,9 @@ function EditConnectionModal({ isOpen, connection, onSave, onClose }: EditConnec
         ccCompatibleContext1m: ccRequestDefaults.context1m,
         cloudCodeProjectId:
           (connection.providerSpecificData?.projectId as string) || connection.projectId || "",
+        antigravityClientProfile: normalizeAntigravityClientProfileSetting(
+          connection.providerSpecificData?.clientProfile
+        ),
         blockExtraUsage: isClaudeExtraUsageBlockEnabled(
           connection.provider,
           connection.providerSpecificData
@@ -9426,6 +9434,15 @@ function EditConnectionModal({ isOpen, connection, onSave, onClose }: EditConnec
           updates.providerSpecificData.projectId = trimmedCloudCodeProjectId || null;
         }
       }
+      if (isAntigravity) {
+        updates.providerSpecificData = {
+          ...(connection.providerSpecificData || {}),
+          ...(updates.providerSpecificData || {}),
+          clientProfile: normalizeAntigravityClientProfileSetting(
+            formData.antigravityClientProfile
+          ),
+        };
+      }
       const error = (await onSave(updates)) as void | unknown;
       if (error) {
         setSaveError(typeof error === "string" ? error : t("failedSaveConnection"));
@@ -9521,6 +9538,20 @@ function EditConnectionModal({ isOpen, connection, onSave, onClose }: EditConnec
         )}
         {supportsGoogleProjectId && (
           <div className="flex flex-col gap-4 rounded-lg border border-border/50 bg-surface/20 p-4">
+            {isAntigravity && (
+              <Select
+                label={t("antigravityClientProfileLabel")}
+                value={formData.antigravityClientProfile}
+                options={ANTIGRAVITY_CLIENT_PROFILE_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: t(option.labelKey),
+                }))}
+                onChange={(e) =>
+                  setFormData({ ...formData, antigravityClientProfile: e.target.value })
+                }
+                hint={t("antigravityClientProfileHint")}
+              />
+            )}
             <Input
               label={isAntigravity ? t("antigravityProjectIdLabel") : t("geminiCliProjectIdLabel")}
               value={formData.cloudCodeProjectId}
