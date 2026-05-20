@@ -2823,7 +2823,12 @@ export async function handleChatCore({
         credentials,
         provider,
         reqLogger,
-        { normalizeToolCallId, preserveDeveloperRole, preserveCacheControl }
+        {
+          normalizeToolCallId,
+          preserveDeveloperRole,
+          preserveCacheControl,
+          signatureNamespace: connectionId,
+        }
       );
     }
   } catch (error) {
@@ -3074,7 +3079,6 @@ export async function handleChatCore({
   // Create stream controller for disconnect detection
   const streamController = createStreamController({
     onDisconnect,
-    log,
     provider,
     model,
     connectionId,
