@@ -6,6 +6,10 @@
 
 ## [3.8.1] — 2026-05-20
 
+### 🔧 Bug Fixes & Refactors
+
+- **fix(antigravity):** deduplicate `removeHeaderCaseInsensitive` — export canonical implementation from `antigravityClientProfile.ts` and remove the local copy in `antigravity.ts`; export `AntigravityCredentialsLike` type for cross-module use. (#2433 — thanks @Gi99lin)
+
 ### 🔒 Security Fixes
 
 - **fix(security):** replace `execSync` string-template with `spawnSync` arg-array in `plugin.mjs` — eliminates shell command injection via malicious plugin names.
