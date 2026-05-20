@@ -1,6 +1,6 @@
 {
   "name": "omniroute",
-  "version": "3.8.0",
+  "version": "3.8.1",
   "description": "Unified AI router with 160+ providers, RTK+Caveman compression, auto fallback, MCP/A2A, desktop, PWA, and OpenAI-compatible APIs.",
   "type": "module",
   "bin": {
@@ -139,7 +139,6 @@
     "@xyflow/react": "^12.10.2",
     "axios": "^1.16.1",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.10.0",
     "bottleneck": "^2.19.5",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.3",
@@ -192,6 +191,7 @@
     "zustand": "^5.0.13"
   },
   "optionalDependencies": {
+    "better-sqlite3": "^12.10.0",
     "keytar": "^7.9.0",
     "tls-client-node": "^0.1.13",
     "wreq-js": "^2.3.0"

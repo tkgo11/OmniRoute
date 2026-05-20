@@ -37,7 +37,13 @@ export const updateSettingsSchema = z.object({
   debugMode: z.boolean().optional(),
   hiddenSidebarItems: z.array(z.enum(HIDEABLE_SIDEBAR_ITEM_IDS)).optional(),
   comboConfigMode: z.enum(COMBO_CONFIG_MODES).optional(),
-  codexServiceTier: z.object({ enabled: z.boolean() }).optional(),
+  codexServiceTier: z
+    .object({
+      enabled: z.boolean().optional(),
+      tier: z.enum(["default", "priority", "flex"]).optional(),
+      supportedModels: z.array(z.string().max(200)).max(200).optional(),
+    })
+    .optional(),
   // Claude Fast Mode: opt-in toggle that asks a paired CLIProxyAPI build
   // (claude-fastmode-spoof) to rewrite SDK-shaped entrypoints so requests can
   // reach Anthropic Fast Mode (speed:"fast"). Default off; only the listed
