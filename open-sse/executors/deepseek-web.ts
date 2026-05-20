@@ -43,19 +43,11 @@ const tokenCache = new Map<string, TokenInfo>();
 const sessionCache = new Map<string, { sessionId: string; createdAt: number }>();
 
 const SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_MAX_SIZE = 100;
-
-function evictOldest(cache: Map<string, unknown>): void {
-  if (cache.size >= CACHE_MAX_SIZE) {
-    const first = cache.keys().next().value;
-    if (first) cache.delete(first);
-  }
-}
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function extractUserToken(credentials: Record<string, unknown>): string | null {
-  const raw = credentials?.apiKey || credentials?.accessToken;
+  const raw = credentials?.apiKey || credentials?.accessToken || credentials?.refreshToken;
   if (typeof raw !== "string" || raw.length === 0) return null;
   // Handle JSON-wrapped tokens (DeepSeek stores token as {"value":"..."})
   try {
@@ -131,7 +123,7 @@ async function solvePow(challenge: PowChallenge): Promise<string> {
       salt: challenge.salt,
       answer,
       signature: challenge.signature,
-      target_path: challenge.target_path,
+      target_path: "/api/v0/chat/completion",
     })
   ).toString("base64");
 }
@@ -331,7 +323,6 @@ async function acquireAccessToken(
   }
 
   const accessToken = bizData.token;
-  evictOldest(tokenCache);
   tokenCache.set(userToken, {
     accessToken,
     expiresAt: Math.floor(Date.now() / 1000) + 3600,
@@ -370,7 +361,6 @@ async function createSession(
   const id = bizData?.chat_session?.id;
   if (!id) throw new Error(`No session id: code=${json?.code}`);
 
-  evictOldest(sessionCache);
   sessionCache.set(cacheKey, { sessionId: id, createdAt: Date.now() });
   return id;
 }
