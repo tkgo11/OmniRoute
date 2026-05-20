@@ -274,6 +274,7 @@ export async function listDbBackups() {
       .sort()
       .reverse();
 
+    const { tryOpenSync } = await import("@/lib/db/adapters/driverFactory");
     return entries.map((filename) => {
       const filePath = path.join(backupDir, filename);
       const stat = fs.statSync(filePath);
@@ -282,7 +283,6 @@ export async function listDbBackups() {
 
       let connectionCount = 0;
       try {
-        const { tryOpenSync } = await import("@/lib/db/adapters/driverFactory");
         const backupDb = tryOpenSync(filePath, { readonly: true });
         if (backupDb) {
           try {
