@@ -6,6 +6,9 @@
 - **feat(providers):** add Astraflow provider support with global + China endpoints — new provider with dual-region base URLs for global and mainland China access. ([#2486](https://github.com/diegosouzapw/OmniRoute/pull/2486) — thanks @ucloudnb666)
 - **feat(providers):** add `claude-web` provider — cookie-based Claude Web chat access without OAuth. ([#2476](https://github.com/diegosouzapw/OmniRoute/pull/2476) — thanks @oyi77)
 - **feat(providers):** add 14 free-tier providers (Wave 1b) — 360AI, Baichuan, Baidu, ByteDance/Doubao, IDEO, Kuaishou/Kling, Kunlun/Skywork, SenseTime/SenseNova, Stepfun, Tencent HunYuan, Zhipu GLM, Replicate, RunPod, and Modal with provider icons, model specs, and routing support. ([#2488](https://github.com/diegosouzapw/OmniRoute/pull/2488) — thanks @oyi77)
+- **feat(hermes):** add rich multi-role Hermes Agent CLI support — 7 configurable roles (default, delegation, vision, compression, web_extract, skills_hub, approval), per-role model selection with YAML config generation, dashboard card with preview, and home widget integration. ([#2526](https://github.com/diegosouzapw/OmniRoute/pull/2526) — thanks @apoapostolov)
+- **feat(cloud-agents):** cloud agents UX overhaul — tabs (tasks/agents/settings), status filters, Material icons, duration formatting, cloud agent credentials and health API endpoints, memory stats endpoint. ([#2516](https://github.com/diegosouzapw/OmniRoute/pull/2516) — thanks @oyi77)
+- **feat(authz):** manage-scope API keys may reach `/api/mcp/*` from non-loopback — Route Guard Tiers system (LOCAL_ONLY / ALWAYS_PROTECTED / MANAGEMENT), narrow carve-out for remote MCP access gated by `manage` scope; `/api/cli-tools/runtime/*` stays strict-loopback. Includes dashboard AuthzSection, inventory API, and comprehensive docs. ([#2473](https://github.com/diegosouzapw/OmniRoute/pull/2473) — thanks @mrmm)
 
 ### 🔧 Bug Fixes
 
@@ -34,6 +37,8 @@
 - **fix(handler):** capture Gemini `thought_signature` in non-streaming response path — the non-streaming translator now captures `thoughtSignature` from Gemini thinking model parts and persists them so follow-up turns can resolve them correctly. ([#2518](https://github.com/diegosouzapw/OmniRoute/pull/2518) — thanks @herjarsa)
 - **fix(kiro):** replace broken social OAuth with device flow — rewrites Kiro's Google/GitHub social login from the broken PKCE `kiro://` custom protocol to AWS Cognito device flow, which works correctly in web/proxy environments. ([#2524](https://github.com/diegosouzapw/OmniRoute/pull/2524) — thanks @disonjer)
 - **fix(providers):** resolve `opencode/` → `opencode-zen` slug mismatch + add 40+ new models — `opencode` is now a proper alias for `opencode-zen` in executor, model resolver, and provider registry; adds GPT 5.x, Claude 4.x, Gemini 3.x, Grok, Kimi, and other models with tests. ([#2517](https://github.com/diegosouzapw/OmniRoute/pull/2517) — thanks @herjarsa)
+- **fix(antigravity):** fail over stalled Antigravity sessions — new `ANTIGRAVITY_PRE_RESPONSE_TIMEOUT_CODE` shared constant for pre-response timeout detection, automatic failover to next account when session stalls before headers arrive. Node.js engine range relaxed to `>=20.20.2`. ([#2464](https://github.com/diegosouzapw/OmniRoute/pull/2464) — thanks @dhaern)
+- **fix(deepseek-web):** fix SSE parser, prompt format, and error handling — handles all 3 DeepSeek SSE stream formats (initial fragments, APPEND operations, bare string tokens), simplifies prompt to single-turn to prevent chat marker leakage, and checks `json.code` before token extraction. ([#2502](https://github.com/diegosouzapw/OmniRoute/pull/2502) — thanks @ovehbe)
 
 ### 🌐 Internationalization
 
