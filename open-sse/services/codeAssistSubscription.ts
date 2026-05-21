@@ -70,21 +70,11 @@ export function extractCodeAssistOnboardTierId(subscriptionInfo: unknown): strin
   if (!isIneligible(subscription)) {
     const currentId = pickTierField(subscription.currentTier, "id");
     if (currentId) return currentId;
-  } else {
-    const defaultTier = findDefaultAllowedTier(subscription);
-    const defaultId = defaultTier ? pickTierField(defaultTier, "id") : null;
-    if (defaultId) return defaultId;
   }
 
-  if (Array.isArray(subscription.allowedTiers)) {
-    for (const tierValue of subscription.allowedTiers) {
-      const tier = toRecord(tierValue);
-      if (tier.isDefault) {
-        const id = pickTierField(tier, "id");
-        if (id) return id;
-      }
-    }
-  }
+  const defaultTier = findDefaultAllowedTier(subscription);
+  const defaultId = defaultTier ? pickTierField(defaultTier, "id") : null;
+  if (defaultId) return defaultId;
 
   const currentId = pickTierField(subscription.currentTier, "id");
   if (currentId) return currentId;

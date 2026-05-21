@@ -1809,8 +1809,9 @@ async function getAntigravityUsage(
     return { plan: "Free", message: "Antigravity access token not available." };
   }
 
+  let subscriptionInfo: unknown = null;
   try {
-    const subscriptionInfo = await getAntigravitySubscriptionInfoCached(
+    subscriptionInfo = await getAntigravitySubscriptionInfoCached(
       accessToken,
       providerSpecificData,
       options
@@ -1908,17 +1909,6 @@ async function getAntigravityUsage(
       subscriptionInfo,
     };
   } catch (error) {
-    let subscriptionInfo: unknown = null;
-    try {
-      subscriptionInfo = await getAntigravitySubscriptionInfoCached(
-        accessToken,
-        providerSpecificData,
-        options
-      );
-    } catch {
-      subscriptionInfo = null;
-    }
-
     return {
       plan: getAntigravityPlanLabel(subscriptionInfo, providerSpecificData),
       subscriptionInfo,
