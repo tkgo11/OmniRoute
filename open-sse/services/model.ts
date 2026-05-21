@@ -28,6 +28,12 @@ for (const [id, alias] of Object.entries(PROVIDER_ID_TO_ALIAS)) {
   }
   ALIAS_TO_PROVIDER_ID[alias] = id;
 }
+// Manual alias overrides — maps slug-style prefixes to canonical provider IDs.
+// These live outside the registry because they represent multiple providers
+// or backward-compatible slug changes, not a single provider's display name.
+// opencode/ → opencode-zen (the main free/open tier; opencode-go is a separate paid tier)
+ALIAS_TO_PROVIDER_ID["opencode"] = "opencode-zen";
+
 
 // Manual aliases for external compatibility not covered by PROVIDER_ID_TO_ALIAS.
 // OpenCode's Zen provider now uses the "opencode" slug, but OmniRoute registers
