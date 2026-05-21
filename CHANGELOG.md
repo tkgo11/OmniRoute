@@ -4,7 +4,7 @@
 
 ---
 
-## [3.8.1] — 2026-05-20
+## [3.8.1] — 2026-05-21
 
 ### ✨ New Features
 
@@ -27,6 +27,7 @@
 - **fix(jules):** Jules API parity and cloud-agent provider registration. ([#2438](https://github.com/diegosouzapw/OmniRoute/pull/2438))
 - **fix(i18n):** harden diff key extraction tag sanitization in `extract-keys-from-diff.mjs`.
 - **chore(i18n):** refresh fr/es/de locales + add missing `settings.update` key. ([#2437](https://github.com/diegosouzapw/OmniRoute/pull/2437))
+- **fix(dashboard):** allow bracketed combo names — align dashboard combo-name validator regex with the shared/server schema updated in PR #2354; names like `Claude [1m]` are now accepted in the create/edit form. ([#2458](https://github.com/diegosouzapw/OmniRoute/pull/2458) — thanks @congvc-dev)
 
 ### 🔒 Security Fixes
 
