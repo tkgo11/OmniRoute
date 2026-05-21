@@ -1242,6 +1242,41 @@ function isCopilotClient(
   return false;
 }
 
+export function extractSystemRoleMessages(payload: Record<string, unknown>): void {
+  if (!Array.isArray(payload.messages)) return;
+  const messages = payload.messages as Array<{ role?: unknown; content?: unknown }>;
+  const systemMessages = messages.filter(
+    (m) => typeof m.role === "string" && m.role.toLowerCase() === "system"
+  );
+  if (systemMessages.length === 0) return;
+
+  const extraBlocks: Array<Record<string, unknown>> = [];
+  for (const sm of systemMessages) {
+    if (typeof sm.content === "string" && sm.content.length > 0) {
+      extraBlocks.push({ type: "text", text: sm.content });
+    } else if (Array.isArray(sm.content)) {
+      for (const block of sm.content as Array<Record<string, unknown>>) {
+        if (block?.type === "text" && typeof block.text === "string" && block.text.length > 0) {
+          extraBlocks.push({ ...block });
+        }
+      }
+    }
+  }
+  if (extraBlocks.length > 0) {
+    const existingSystem = payload.system;
+    if (typeof existingSystem === "string" && existingSystem.length > 0) {
+      payload.system = [{ type: "text", text: existingSystem }, ...extraBlocks];
+    } else if (Array.isArray(existingSystem)) {
+      payload.system = [...(existingSystem as Array<Record<string, unknown>>), ...extraBlocks];
+    } else {
+      payload.system = extraBlocks;
+    }
+  }
+  payload.messages = messages.filter(
+    (m) => typeof m.role !== "string" || m.role.toLowerCase() !== "system"
+  );
+}
+
 export async function handleChatCore({
   body,
   modelInfo,
@@ -2575,45 +2610,6 @@ export async function handleChatCore({
   type ClaudeMessage = {
     role?: unknown;
     content?: unknown;
-  };
-
-  /**
-   * Lightweight extraction: only lifts role:"system" messages to the top-level
-   * `system` parameter. Unlike normalizeClaudeUpstreamMessages, this does NOT
-   * convert file/document blocks, drop unknown types, or change tool history.
-   * Used in the semantic passthrough path where Claude Code's native payload
-   * structure must be preserved — only memory injection (which prepends a
-   * system message) needs this correction.
-   */
-  const extractSystemRoleMessages = (payload: Record<string, unknown>) => {
-    if (!Array.isArray(payload.messages)) return;
-    const messages = payload.messages as ClaudeMessage[];
-    const systemMessages = messages.filter((m) => m.role === "system");
-    if (systemMessages.length === 0) return;
-
-    const extraBlocks: ClaudeContentBlock[] = [];
-    for (const sm of systemMessages) {
-      if (typeof sm.content === "string" && sm.content.length > 0) {
-        extraBlocks.push({ type: "text", text: sm.content });
-      } else if (Array.isArray(sm.content)) {
-        for (const block of sm.content as ClaudeContentBlock[]) {
-          if (block?.type === "text" && typeof block.text === "string" && block.text.length > 0) {
-            extraBlocks.push(block);
-          }
-        }
-      }
-    }
-    if (extraBlocks.length > 0) {
-      const existingSystem = payload.system;
-      if (typeof existingSystem === "string" && existingSystem.length > 0) {
-        payload.system = [{ type: "text", text: existingSystem }, ...extraBlocks];
-      } else if (Array.isArray(existingSystem)) {
-        payload.system = [...(existingSystem as ClaudeContentBlock[]), ...extraBlocks];
-      } else {
-        payload.system = extraBlocks;
-      }
-    }
-    payload.messages = messages.filter((m) => m.role !== "system");
   };
 
   const normalizeClaudeUpstreamMessages = (
