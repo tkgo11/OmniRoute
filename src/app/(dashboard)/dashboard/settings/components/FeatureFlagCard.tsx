@@ -1,5 +1,4 @@
-import React from "react";
-import { AlertTriangle, Loader2, RefreshCw, RotateCcw } from "lucide-react";
+"use client";
 
 interface FeatureFlagCardProps {
   flag: {
@@ -8,7 +7,7 @@ interface FeatureFlagCardProps {
     description: string;
     category: "security" | "network" | "policies" | "runtime" | "cli" | "health";
     type: "boolean" | "enum";
-    enumValues?: string[];
+    enumValues?: string[] | null;
     effectiveValue: string;
     source: "db" | "env" | "default";
     requiresRestart: boolean;
@@ -19,167 +18,161 @@ interface FeatureFlagCardProps {
   saving?: boolean;
 }
 
-const categoryStyles = {
-  security: "bg-red-500/15 text-red-500",
-  network: "bg-blue-500/15 text-blue-500",
-  policies: "bg-amber-500/15 text-amber-500",
-  runtime: "bg-purple-500/15 text-purple-500",
-  cli: "bg-green-500/15 text-green-500",
-  health: "bg-cyan-500/15 text-cyan-500",
+const CATEGORY_STYLES: Record<
+  FeatureFlagCardProps["flag"]["category"],
+  { bg: string; text: string; label: string }
+> = {
+  security: { bg: "bg-red-500/15", text: "text-red-400", label: "Security" },
+  network: { bg: "bg-blue-500/15", text: "text-blue-400", label: "Network" },
+  policies: { bg: "bg-amber-500/15", text: "text-amber-400", label: "Policies" },
+  runtime: { bg: "bg-purple-500/15", text: "text-purple-400", label: "Runtime" },
+  cli: { bg: "bg-green-500/15", text: "text-green-400", label: "CLI" },
+  health: { bg: "bg-cyan-500/15", text: "text-cyan-400", label: "Health" },
 };
 
-const sourceBadgeConfig = {
-  db: { label: "DB", className: "bg-blue-500/20 text-blue-400" },
-  env: { label: "ENV", className: "bg-amber-500/20 text-amber-400" },
-  default: { label: "DEF", className: "bg-slate-500/20 text-slate-400" },
+const SOURCE_STYLES: Record<
+  FeatureFlagCardProps["flag"]["source"],
+  { bg: string; text: string; label: string }
+> = {
+  db: { bg: "bg-blue-500/20", text: "text-blue-300", label: "DB" },
+  env: { bg: "bg-amber-500/20", text: "text-amber-300", label: "ENV" },
+  default: { bg: "bg-slate-500/20", text: "text-slate-400", label: "DEF" },
 };
 
-export const FeatureFlagCard: React.FC<FeatureFlagCardProps> = ({
-  flag,
-  onToggle,
-  onReset,
-  saving = false,
-}) => {
-  const isEnabled =
-    flag.effectiveValue === "true" || flag.effectiveValue === "1" || flag.effectiveValue === "yes";
+function isEnabled(value: string): boolean {
+  return value === "true" || value === "1" || value === "yes";
+}
 
-  // Base glassmorphism + hover + active states
-  let cardClass = `feature-flag-card relative flex flex-col justify-between p-4 rounded-xl border bg-black/40 backdrop-blur-md transition-all duration-200 group`;
+function Spinner() {
+  return (
+    <span
+      className="inline-block w-4 h-4 border-2 border-white/20 border-t-white/80 rounded-full animate-spin"
+      aria-hidden="true"
+    />
+  );
+}
 
-  if (flag.type === "boolean") {
-    cardClass += isEnabled
-      ? " border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.08)] hover:border-green-500/50 -translate-y-[1px]"
-      : " border-white/10 opacity-80 hover:border-white/20";
-  } else {
-    cardClass += " border-white/10 hover:border-white/20";
-  }
+export default function FeatureFlagCard({ flag, onToggle, onReset, saving = false }: FeatureFlagCardProps) {
+  const enabled = flag.type === "boolean" ? isEnabled(flag.effectiveValue) : false;
+  const category = CATEGORY_STYLES[flag.category];
+  const source = SOURCE_STYLES[flag.source];
 
-  const handleToggle = () => {
-    if (saving) return;
-    const newValue = isEnabled ? "false" : "true";
-    onToggle(flag.key, newValue);
-  };
+  const cardBorder =
+    flag.type === "boolean" && enabled
+      ? "border-green-500/30 shadow-green-500/10"
+      : "border-white/10";
 
-  const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    if (saving) return;
-    onToggle(flag.key, e.target.value);
-  };
+  const cardOpacity = flag.type === "boolean" && !enabled ? "opacity-80" : "";
 
   return (
     <div
-      className={cardClass}
       role="group"
-      aria-label={flag.description}
-      data-enabled={flag.type === "boolean" ? isEnabled.toString() : "neutral"}
+      aria-label={flag.label}
+      className={`backdrop-blur-xl bg-black/60 border rounded-xl p-4 transition-all duration-200 hover:-translate-y-px hover:shadow-xl hover:border-white/15 ${cardBorder} ${cardOpacity}`}
     >
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <span
-            className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${categoryStyles[flag.category]}`}
-            aria-label={`Category: ${flag.category}`}
-          >
-            {flag.category}
-          </span>
-
-          <div className="flex items-center space-x-2">
-            {flag.requiresRestart && (
-              <span
-                className="flex items-center text-[10px] uppercase font-bold text-amber-500/70"
-                title="Restart required to apply changes"
-              >
-                <RefreshCw size={10} className="mr-1" /> Restart
-              </span>
-            )}
-            {flag.type === "boolean" ? (
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isEnabled}
-                aria-label={flag.label}
-                disabled={saving}
-                onClick={handleToggle}
-                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-white/75 ${isEnabled ? "bg-green-500" : "bg-gray-600"} ${saving ? "opacity-50 cursor-not-allowed" : ""}`}
-              >
-                <span className="sr-only">Toggle {flag.label}</span>
-                {saving && (
-                  <span className="absolute inset-0 flex items-center justify-center">
-                    <Loader2 size={12} className="animate-spin text-white" />
-                  </span>
-                )}
-                <span
-                  aria-hidden="true"
-                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${isEnabled ? "translate-x-4" : "translate-x-0"}`}
-                />
-              </button>
-            ) : (
-              <div className="relative">
-                {saving && (
-                  <span className="absolute -left-5 top-1/2 -translate-y-1/2">
-                    <Loader2 size={12} className="animate-spin text-gray-400" />
-                  </span>
-                )}
-                <select
-                  value={flag.effectiveValue}
-                  onChange={handleSelectChange}
-                  disabled={saving}
-                  className="bg-gray-800 text-xs border border-gray-700 rounded px-2 py-1 outline-none focus:border-blue-500"
-                >
-                  {flag.enumValues?.map((val) => (
-                    <option key={val} value={val}>
-                      {val}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2 mb-1">
-          <h3
-            className="font-mono text-[13px] font-semibold text-gray-200 truncate"
-            title={flag.key}
-          >
-            {flag.key}
-          </h3>
-          {flag.warningLevel === "caution" && (
-            <AlertTriangle size={14} className="text-amber-500" />
-          )}
-          {flag.warningLevel === "danger" && (
-            <AlertTriangle size={14} className="text-red-500 animate-pulse" />
-          )}
-        </div>
-
-        <p
-          className="text-xs text-gray-400 line-clamp-2 leading-relaxed h-8"
-          title={flag.description}
+      {/* Top row: category badge + toggle/select */}
+      <div className="flex items-center justify-between mb-3">
+        <span
+          aria-label={`Category: ${flag.category}`}
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${category.bg} ${category.text}`}
         >
-          {flag.description}
-        </p>
+          {category.label}
+        </span>
+
+        <div className="flex items-center gap-2">
+          {saving && <Spinner />}
+
+          {flag.type === "boolean" ? (
+            <button
+              role="switch"
+              aria-checked={enabled}
+              aria-label={flag.label}
+              disabled={saving}
+              onClick={() => onToggle(flag.key, enabled ? "false" : "true")}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50 disabled:cursor-not-allowed disabled:opacity-50 ${
+                enabled ? "bg-green-500" : "bg-white/20"
+              }`}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+                  enabled ? "translate-x-4" : "translate-x-0.5"
+                }`}
+                aria-hidden="true"
+              />
+            </button>
+          ) : (
+            <select
+              aria-label={flag.label}
+              disabled={saving}
+              value={flag.effectiveValue}
+              onChange={(e) => onToggle(flag.key, e.target.value)}
+              className="text-xs bg-white/10 border border-white/20 rounded-md px-2 py-0.5 text-white focus:outline-none focus:ring-1 focus:ring-white/30 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {(flag.enumValues ?? []).map((val) => (
+                <option key={val} value={val} className="bg-neutral-900">
+                  {val}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
-        <div className="flex items-center space-x-2">
-          <span className="text-[10px] text-gray-500 uppercase">Source:</span>
+      {/* Flag key + warning icon */}
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="font-mono text-xs font-semibold text-white/90 truncate flex-1">
+          {flag.key}
+        </span>
+
+        {flag.warningLevel === "caution" && (
+          <span className="text-amber-400 text-sm" aria-label="Caution">
+            ⚠️
+          </span>
+        )}
+        {flag.warningLevel === "danger" && (
+          <span className="text-sm animate-pulse" aria-label="Danger">
+            🔴
+          </span>
+        )}
+        {flag.requiresRestart && (
           <span
-            className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${sourceBadgeConfig[flag.source].className}`}
+            className="text-[10px] text-slate-400 border border-slate-400/30 rounded px-1"
+            title="Requires restart"
+            aria-label="Requires restart"
           >
-            {sourceBadgeConfig[flag.source].label}
+            restart
+          </span>
+        )}
+      </div>
+
+      {/* Description */}
+      <p className="text-xs text-white/50 line-clamp-2 mb-3">{flag.description}</p>
+
+      {/* Bottom row: source badge + reset button */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-white/30">Source:</span>
+          <span
+            className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-medium ${source.bg} ${source.text}`}
+          >
+            {source.label}
           </span>
         </div>
 
         {flag.source === "db" && (
           <button
-            onClick={() => onReset(flag.key)}
+            aria-label={`Reset ${flag.label} to default`}
             disabled={saving}
-            className="text-[10px] text-gray-400 hover:text-white flex items-center space-x-1 transition-colors px-2 py-1 rounded bg-white/5 hover:bg-white/10"
-            aria-label="Reset to default"
+            onClick={() => onReset(flag.key)}
+            className="inline-flex items-center gap-1 text-xs text-white/40 hover:text-white/70 transition-colors disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50 rounded"
           >
-            <RotateCcw size={10} />
-            <span>Reset</span>
+            <span className="material-symbols-outlined text-[14px]" aria-hidden="true">
+              refresh
+            </span>
+            Reset
           </button>
         )}
       </div>
     </div>
   );
-};
+}

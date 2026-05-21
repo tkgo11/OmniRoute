@@ -1,55 +1,90 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Search, AlertCircle, RefreshCcw } from "lucide-react";
-import { FeatureFlagCard } from "./FeatureFlagCard";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import FeatureFlagCard from "./FeatureFlagCard";
 
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  useEffect(() => {
-    const handler = setTimeout(() => setDebouncedValue(value), delay);
-    return () => clearTimeout(handler);
-  }, [value, delay]);
-  return debouncedValue;
+// Type for flag data from API
+interface FlagData {
+  key: string;
+  label: string;
+  description: string;
+  category: "security" | "network" | "policies" | "runtime" | "cli" | "health";
+  type: "boolean" | "enum";
+  enumValues: string[] | null;
+  defaultValue: string;
+  effectiveValue: string;
+  source: "db" | "env" | "default";
+  requiresRestart: boolean;
+  warningLevel?: "info" | "caution" | "danger";
 }
 
+interface Summary {
+  total: number;
+  active: number;
+  inactive: number;
+  overriddenByDb: number;
+  overriddenByEnv: number;
+}
+
+const CATEGORIES = [
+  { value: "all", label: "All" },
+  { value: "security", label: "Security (6)" },
+  { value: "network", label: "Network (5)" },
+  { value: "policies", label: "Policies (3)" },
+  { value: "runtime", label: "Runtime (5)" },
+  { value: "cli", label: "CLI (3)" },
+  { value: "health", label: "Health (3)" },
+];
+
 export default function FeatureFlagsGrid() {
-  const [flags, setFlags] = useState<any[]>([]);
-  const [summary, setSummary] = useState<any>({
-    total: 0,
-    active: 0,
-    inactive: 0,
-    overriddenByDb: 0,
-    overriddenByEnv: 0,
-  });
+  const [flags, setFlags] = useState<FlagData[]>([]);
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const debouncedSearch = useDebounce(search, 300);
   const [category, setCategory] = useState<string>("all");
   const [savingKeys, setSavingKeys] = useState<Set<string>>(new Set());
+  const [resettingAll, setResettingAll] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
-  const fetchFlags = useCallback(async () => {
+  const loadFlags = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/settings/feature-flags");
-      if (!res.ok) throw new Error("Failed to fetch feature flags");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setFlags(data.flags);
       setSummary(data.summary);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load feature flags");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchFlags();
-  }, [fetchFlags]);
+    loadFlags();
+  }, [loadFlags]);
 
-  const handleToggle = async (key: string, newValue: string) => {
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const filteredFlags = useMemo(() => {
+    return flags
+      .filter((f) => category === "all" || f.category === category)
+      .filter(
+        (f) =>
+          debouncedSearch === "" ||
+          f.key.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+          f.description.toLowerCase().includes(debouncedSearch.toLowerCase()),
+      );
+  }, [flags, debouncedSearch, category]);
+
+  const handleToggle = useCallback(async (key: string, newValue: string) => {
     setSavingKeys((prev) => new Set(prev).add(key));
     try {
       const res = await fetch("/api/settings/feature-flags", {
@@ -57,17 +92,24 @@ export default function FeatureFlagsGrid() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key, value: newValue }),
       });
-      if (res.ok) {
-        const result = await res.json();
-        setFlags((prev) =>
-          prev.map((f) =>
-            f.key === key
-              ? { ...f, effectiveValue: result.effectiveValue, source: result.source }
-              : f
-          )
-        );
-        fetchFlags(); // Silently refresh summary stats
+      if (!res.ok) {
+        setError(`Failed to update flag: HTTP ${res.status}`);
+        return;
       }
+      const result = await res.json();
+      setFlags((prev) => {
+        const oldFlag = prev.find((f) => f.key === key);
+        const wasDb = oldFlag?.source === "db";
+        const isNowDb = result.source === "db";
+        setSummary((s) =>
+          s ? { ...s, overriddenByDb: s.overriddenByDb + (isNowDb ? 1 : 0) - (wasDb ? 1 : 0) } : s
+        );
+        return prev.map((f) =>
+          f.key === key ? { ...f, effectiveValue: result.effectiveValue, source: result.source } : f
+        );
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update flag");
     } finally {
       setSavingKeys((prev) => {
         const next = new Set(prev);
@@ -75,27 +117,34 @@ export default function FeatureFlagsGrid() {
         return next;
       });
     }
-  };
+  }, []);
 
-  const handleReset = async (key: string) => {
+  const handleReset = useCallback(async (key: string) => {
     setSavingKeys((prev) => new Set(prev).add(key));
     try {
       const res = await fetch("/api/settings/feature-flags", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }), // no value => remove override
+        body: JSON.stringify({ key }), // no value = remove override
       });
-      if (res.ok) {
-        const result = await res.json();
-        setFlags((prev) =>
-          prev.map((f) =>
-            f.key === key
-              ? { ...f, effectiveValue: result.effectiveValue, source: result.source }
-              : f
-          )
-        );
-        fetchFlags();
+      if (!res.ok) {
+        setError(`Failed to update flag: HTTP ${res.status}`);
+        return;
       }
+      const result = await res.json();
+      setFlags((prev) => {
+        const oldFlag = prev.find((f) => f.key === key);
+        const wasDb = oldFlag?.source === "db";
+        const isNowDb = result.source === "db";
+        setSummary((s) =>
+          s ? { ...s, overriddenByDb: s.overriddenByDb + (isNowDb ? 1 : 0) - (wasDb ? 1 : 0) } : s
+        );
+        return prev.map((f) =>
+          f.key === key ? { ...f, effectiveValue: result.effectiveValue, source: result.source } : f
+        );
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update flag");
     } finally {
       setSavingKeys((prev) => {
         const next = new Set(prev);
@@ -103,156 +152,155 @@ export default function FeatureFlagsGrid() {
         return next;
       });
     }
-  };
+  }, []);
 
-  const handleResetAll = async () => {
-    if (
-      !confirm(
-        "Are you sure you want to clear all DB overrides? This will revert all feature flags to their default or ENV values."
-      )
-    )
-      return;
+  const handleResetAll = useCallback(async () => {
+    setResettingAll(true);
     try {
       const res = await fetch("/api/settings/feature-flags", { method: "DELETE" });
-      if (res.ok) {
-        fetchFlags();
+      if (!res.ok) {
+        setError(`Failed to reset overrides: HTTP ${res.status}`);
+        setShowResetConfirm(false);
+        return;
       }
+      await loadFlags();
+      setShowResetConfirm(false);
     } catch (err) {
-      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to reset overrides");
+      setShowResetConfirm(false);
+    } finally {
+      setResettingAll(false);
     }
-  };
-
-  const filteredFlags = useMemo(() => {
-    return flags
-      .filter((f) => category === "all" || f.definition.category === category)
-      .filter(
-        (f) =>
-          debouncedSearch === "" ||
-          f.key.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-          f.definition.description.toLowerCase().includes(debouncedSearch.toLowerCase())
-      );
-  }, [flags, debouncedSearch, category]);
-
-  const categories = ["all", "security", "network", "policies", "runtime", "cli", "health"];
-
-  if (loading && flags.length === 0) {
-    return (
-      <div className="space-y-6 animate-pulse">
-        <div className="h-20 bg-white/5 rounded-xl"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 9 }).map((_, i) => (
-            <div key={i} className="h-40 bg-white/5 rounded-xl"></div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 border border-red-500/20 rounded-xl bg-red-500/5">
-        <AlertCircle size={48} className="text-red-500 mb-4" />
-        <h3 className="text-lg font-semibold text-white mb-2">Failed to load feature flags</h3>
-        <p className="text-gray-400 mb-4">{error}</p>
-        <button
-          onClick={fetchFlags}
-          className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded font-medium transition"
-        >
-          Retry
-        </button>
-      </div>
-    );
-  }
+  }, [loadFlags]);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 bg-white/5 rounded-xl border border-white/10">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white mb-1">Feature Flags</h1>
-          <div className="text-sm text-gray-400 flex items-center space-x-2">
-            <span className="text-green-400 font-medium">{summary.active} active</span>
-            <span>&middot;</span>
-            <span className="text-gray-500 font-medium">{summary.inactive} inactive</span>
-            <span>&middot;</span>
-            <span className="text-blue-400 font-medium">{summary.overriddenByDb} DB overrides</span>
-          </div>
+          <h1 className="text-2xl font-semibold text-white">Feature Flags</h1>
+          {summary && (
+            <div className="mt-1 flex gap-3 text-sm">
+              <span className="text-green-400">{summary.active} active</span>
+              <span className="text-slate-500">·</span>
+              <span className="text-slate-400">{summary.inactive} inactive</span>
+              <span className="text-slate-500">·</span>
+              <span className="text-blue-400">{summary.overriddenByDb} DB overrides</span>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center space-x-3 w-full md:w-auto">
-          <div className="relative w-full md:w-64">
-            <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+        {/* Search + Filter */}
+        <div className="flex gap-2">
+          {/* Search input with search icon */}
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-2.5 top-2 text-sm text-slate-400">
+              search
+            </span>
             <input
               type="text"
               placeholder="Search flags..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-black/50 border border-white/10 rounded-lg text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
+              className="pl-8 pr-4 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-white/20"
             />
           </div>
+
+          {/* Category filter */}
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full md:w-48 px-3 py-2 bg-black/50 border border-white/10 rounded-lg text-sm text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition capitalize"
+            className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-sm text-white focus:outline-none focus:border-white/20"
           >
-            {categories.map((c) => {
-              const count =
-                c === "all"
-                  ? flags.length
-                  : flags.filter((f) => f.definition.category === c).length;
-              return (
-                <option key={c} value={c}>
-                  {c === "all" ? "All Categories" : c} ({count})
-                </option>
-              );
-            })}
+            {CATEGORIES.map((cat) => (
+              <option key={cat.value} value={cat.value} className="bg-slate-900">
+                {cat.label}
+              </option>
+            ))}
           </select>
         </div>
       </div>
 
-      {/* Grid */}
-      {filteredFlags.length === 0 ? (
-        <div className="flex flex-col items-center justify-center p-12 border border-white/5 rounded-xl bg-white/[0.02]">
-          <Search size={48} className="text-gray-600 mb-4" />
-          <h3 className="text-lg font-medium text-white mb-1">No flags found</h3>
-          <p className="text-gray-400">No flags match your current search and filter criteria.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredFlags.map((flag) => (
-            <FeatureFlagCard
-              key={flag.key}
-              flag={{
-                key: flag.key,
-                label: flag.definition.label,
-                description: flag.definition.description,
-                category: flag.definition.category,
-                type: flag.definition.type,
-                enumValues: flag.definition.enumValues,
-                effectiveValue: flag.effectiveValue,
-                source: flag.source,
-                requiresRestart: flag.definition.requiresRestart,
-                warningLevel: flag.definition.warningLevel,
-              }}
-              onToggle={handleToggle}
-              onReset={handleReset}
-              saving={savingKeys.has(flag.key)}
-            />
+      {/* Loading skeleton */}
+      {loading && (
+        <div
+          className="grid gap-4"
+          style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}
+        >
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} className="h-36 rounded-xl bg-white/5 animate-pulse" />
           ))}
         </div>
       )}
 
-      {/* Footer */}
-      {summary.overriddenByDb > 0 && (
-        <div className="pt-8 flex justify-end">
-          <button
-            onClick={handleResetAll}
-            className="flex items-center px-4 py-2 text-sm font-medium text-red-400 hover:text-white border border-red-500/50 hover:bg-red-500/20 rounded-lg transition"
-          >
-            <RefreshCcw size={16} className="mr-2" />
-            Reset All Overrides
+      {/* Error state */}
+      {!loading && error && (
+        <div className="flex items-center justify-between rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+          <p className="text-sm text-red-400">{error}</p>
+          <button onClick={loadFlags} className="text-sm text-red-400 underline hover:no-underline">
+            Retry
           </button>
         </div>
+      )}
+
+      {/* Grid */}
+      {!loading && !error && (
+        <>
+          {filteredFlags.length === 0 ? (
+            <div className="py-16 text-center text-slate-400">
+              <span className="material-symbols-outlined text-4xl">search_off</span>
+              <p className="mt-2 text-sm">No flags match your search</p>
+            </div>
+          ) : (
+            <div
+              className="grid gap-4"
+              style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}
+            >
+              {filteredFlags.map((flag) => (
+                <FeatureFlagCard
+                  key={flag.key}
+                  flag={flag}
+                  onToggle={handleToggle}
+                  onReset={handleReset}
+                  saving={savingKeys.has(flag.key)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Reset All button */}
+          {summary && summary.overriddenByDb > 0 && (
+            <div className="flex justify-end pt-4 border-t border-white/10">
+              {!showResetConfirm ? (
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  className="rounded-lg border border-red-500/40 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  Reset All Overrides
+                </button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <p className="text-sm text-slate-400">
+                    Reset all {summary.overriddenByDb} DB override(s)?
+                  </p>
+                  <button
+                    onClick={() => setShowResetConfirm(false)}
+                    className="text-sm text-slate-400 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleResetAll}
+                    disabled={resettingAll}
+                    className="rounded-lg bg-red-500/20 px-4 py-2 text-sm text-red-400 hover:bg-red-500/30 disabled:opacity-50 transition-colors"
+                  >
+                    {resettingAll ? "Resetting..." : "Confirm Reset"}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
