@@ -12,9 +12,9 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 // ---------- Versions ------------------------------------------------------
 
-export const CLAUDE_CODE_VERSION = "2.1.131";
+export const CLAUDE_CODE_VERSION = "2.1.146";
 /** Bundled @anthropic-ai/sdk version for the pinned CLI release. */
-export const CLAUDE_CODE_STAINLESS_VERSION = "0.81.0";
+export const CLAUDE_CODE_STAINLESS_VERSION = "0.94.0";
 
 // ---------- Stainless OS / Arch / Runtime --------------------------------
 
@@ -318,7 +318,8 @@ export function selectBetaFlags(body: Record<string, unknown> | null | undefined
     flags.push(
       "advanced-tool-use-2025-11-20",
       "effort-2025-11-24",
-      "extended-cache-ttl-2025-04-11"
+      "extended-cache-ttl-2025-04-11",
+      "cache-diagnosis-2026-04-07"
     );
   }
   return flags.join(",");
