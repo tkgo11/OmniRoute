@@ -414,10 +414,12 @@ test("usage service manual Antigravity refresh bypasses usage TTL caches", async
   process.env.ANTIGRAVITY_CREDITS = "retry";
   let probeCalls = 0;
   let modelCalls = 0;
+  let loadCodeAssistCalls = 0;
 
   globalThis.fetch = async (url) => {
     const urlStr = String(url);
     if (urlStr.includes("loadCodeAssist")) {
+      loadCodeAssistCalls++;
       return new Response(JSON.stringify({ cloudaicompanionProject: "ag-project" }), {
         status: 200,
       });
@@ -460,6 +462,7 @@ test("usage service manual Antigravity refresh bypasses usage TTL caches", async
 
   assert.equal(probeCalls, 2);
   assert.equal(modelCalls, 2);
+  assert.equal(loadCodeAssistCalls, 2);
 });
 
 test("usage service handles missing Antigravity access tokens without probing upstream", async () => {
@@ -1258,6 +1261,20 @@ test("usage helper branches cover Gemini CLI and Antigravity plan label fallback
   );
 
   assert.equal(__testing.getAntigravityPlanLabel(null), "Free");
+  assert.equal(
+    __testing.getAntigravityPlanLabel({
+      paidTier: { name: "Google One AI Premium" },
+      currentTier: { id: "free-tier" },
+    }),
+    "Pro"
+  );
+  assert.equal(
+    __testing.getAntigravityPlanLabel({
+      currentTier: { id: "tier_google_one_ai_pro" },
+      allowedTiers: [{ id: "free-tier", isDefault: true }],
+    }),
+    "Pro"
+  );
   assert.equal(
     __testing.getAntigravityPlanLabel({
       allowedTiers: [{ id: "tier_pro", isDefault: true }],
