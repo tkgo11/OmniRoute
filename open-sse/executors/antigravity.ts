@@ -31,6 +31,7 @@ import {
 import { persistCreditBalance, getAllPersistedCreditBalances } from "@/lib/db/creditBalance";
 import { obfuscateSensitiveWords } from "../services/antigravityObfuscation.ts";
 import { resolveAntigravityVersion } from "../services/antigravityVersion.ts";
+import { ensureAntigravityProjectAssigned } from "../services/antigravityProjectBootstrap.ts";
 import { resolveAntigravityModelId } from "../config/antigravityModelAliases.ts";
 import { cloakAntigravityToolPayload } from "../config/toolCloaking.ts";
 import {
@@ -419,12 +420,12 @@ export class AntigravityExecutor extends BaseExecutor {
     return scrubProxyAndFingerprintHeaders(raw);
   }
 
-  transformRequest(
+  async transformRequest(
     model: string,
     body: unknown,
     _stream: boolean,
     credentials: AntigravityCredentials
-  ): AntigravityRequestEnvelope | Response {
+  ): Promise<AntigravityRequestEnvelope | Response> {
     // TODO: Consider removing project override like gemini-cli.ts — stored projectId
     // can become stale for Cloud Code accounts, causing 403 "has not been used in project X".
     // Antigravity accounts may have more stable project IDs, but the risk exists.
@@ -444,16 +445,28 @@ export class AntigravityExecutor extends BaseExecutor {
     // Default: prefer OAuth-stored projectId over incoming body.project to avoid
     // stale/wrong client-side values causing 404/403 from Cloud Code endpoints.
     // Opt-in escape hatch: set OMNIROUTE_ALLOW_BODY_PROJECT_OVERRIDE=1.
-    const projectId =
+    let projectId =
       allowBodyProjectOverride && bodyProjectId
         ? bodyProjectId
         : credentialsProjectId || providerSpecificProjectId || bodyProjectId;
+
+    // Auto-discover a missing projectId via loadCodeAssist before failing (#2334/#2541).
+    // A freshly re-added Antigravity account can have an empty stored projectId even when
+    // its Google account already owns a Cloud Code project (the OAuth-time loadCodeAssist
+    // returned empty/transiently failed). Mirror gemini-cli.ts's bootstrap to recover it
+    // here — the helper memoizes per access-token, so this is a one-time round-trip.
+    if (!projectId && credentials?.accessToken) {
+      const discovered = await ensureAntigravityProjectAssigned(credentials.accessToken);
+      if (discovered) projectId = discovered;
+    }
 
     if (!projectId) {
       // (#489) Return a structured error instead of throwing — gives the client a clear signal
       // to show a "Reconnect OAuth" prompt rather than an opaque "Internal Server Error".
       const errorMsg =
-        "Missing Google projectId for Antigravity account. Please reconnect OAuth in Providers → Antigravity so OmniRoute can fetch your Cloud Code project.";
+        "Missing Google projectId for Antigravity account. Auto-discovery via loadCodeAssist " +
+        "found no Cloud Code project. Please reconnect OAuth in Providers → Antigravity (and " +
+        "ensure the Google account has completed Gemini Code Assist onboarding).";
       const errorBody = {
         error: {
           message: errorMsg,
