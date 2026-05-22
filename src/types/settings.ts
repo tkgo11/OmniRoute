@@ -1,4 +1,9 @@
-import type { HideableSidebarItemId } from "@/shared/constants/sidebarVisibility";
+import type {
+  HideableSidebarItemId,
+  SidebarItemOrder,
+  SidebarPresetId,
+  SidebarSectionId,
+} from "@/shared/constants/sidebarVisibility";
 import type { ResilienceSettings } from "@/lib/resilience/settings";
 import type {
   AccountFallbackStrategyValue,
@@ -28,6 +33,9 @@ export interface Settings {
   showQuickStartOnHome?: boolean;
   showProviderTopologyOnHome?: boolean;
   hiddenSidebarItems?: HideableSidebarItemId[];
+  sidebarSectionOrder?: SidebarSectionId[];
+  sidebarItemOrder?: SidebarItemOrder;
+  sidebarActivePreset?: SidebarPresetId;
   resilienceSettings?: ResilienceSettings;
   // LOCAL_ONLY manage-scope bypass policy (DB-stored, hot-reloaded by
   // `applyRuntimeSettings` → `applyAuthzBypassSection`). The route guard
