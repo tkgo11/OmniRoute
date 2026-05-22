@@ -82,6 +82,41 @@ test("loader: valid api auth → {apiKey, baseURL, fetch} when baseURL option se
   );
 });
 
+test("loader: features.fetchInterceptor=false AND geminiSanitization=false → no custom fetch (flags honored)", async () => {
+  // Regression: both fetch-layer flags were documented + schema-validated but
+  // silently ignored. Disabling both must fall back to the SDK default fetch.
+  const hook = createOmniRouteAuthHook({
+    baseURL: "https://or.example.com/v1",
+    features: { fetchInterceptor: false, geminiSanitization: false },
+  });
+  const result = await hook.loader!(
+    async () => ({ type: "api", key: "sk-x" }) as never,
+    {} as never
+  );
+  assert.deepEqual(result, { apiKey: "sk-x", baseURL: "https://or.example.com/v1" });
+  assert.equal(
+    (result as { fetch?: unknown }).fetch,
+    undefined,
+    "both flags off must omit the custom fetch"
+  );
+});
+
+test("loader: features.fetchInterceptor=false but geminiSanitization=true → fetch still wired (sanitizer only)", async () => {
+  const hook = createOmniRouteAuthHook({
+    baseURL: "https://or.example.com/v1",
+    features: { fetchInterceptor: false, geminiSanitization: true },
+  });
+  const result = await hook.loader!(
+    async () => ({ type: "api", key: "sk-x" }) as never,
+    {} as never
+  );
+  assert.equal(
+    typeof (result as { fetch?: unknown }).fetch,
+    "function",
+    "geminiSanitization alone must still provide a fetch wrapper"
+  );
+});
+
 test("loader: null/undefined auth → {} (no creds yet, OC surfaces /connect)", async () => {
   const hook = createOmniRouteAuthHook();
   const r1 = await hook.loader!(async () => null as never, {} as never);

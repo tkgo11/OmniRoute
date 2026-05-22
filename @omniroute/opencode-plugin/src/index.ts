@@ -241,7 +241,13 @@ function coercePluginOptions(opts?: PluginOptions): OmniRoutePluginOptions {
  *     user instead of dispatching a request with bogus credentials.
  */
 export function createOmniRouteAuthHook(opts?: OmniRoutePluginOptions): AuthHook {
-  const { providerId, displayName, baseURL } = resolveOmniRoutePluginOptions(opts);
+  const { providerId, displayName, baseURL, features } = resolveOmniRoutePluginOptions(opts);
+  // Both fetch-layer features default ON (parity with the rest of the plugin's
+  // `features.X !== false` convention). Honoring them here lets users disable
+  // the interceptor/sanitizer from opencode.json — previously these flags were
+  // documented and schema-validated but silently ignored.
+  const wantFetchInterceptor = (features ?? {}).fetchInterceptor !== false;
+  const wantGeminiSanitization = (features ?? {}).geminiSanitization !== false;
 
   const hook: AuthHook = {
     provider: providerId,
@@ -285,22 +291,26 @@ export function createOmniRouteAuthHook(opts?: OmniRoutePluginOptions): AuthHook
         if (!resolvedBaseURL) {
           return { apiKey };
         }
-        return {
-          apiKey,
-          baseURL: resolvedBaseURL,
-          // Composition: sanitise Gemini tool schemas FIRST (T-06), then
-          // inject Bearer (T-04). Both layers are pure with respect to the
-          // other's concern (body vs headers) so order is logically free;
-          // wrapping the pure body-transform around the header-injecting
-          // interceptor reads cleaner and keeps T-06 testable in isolation
-          // against any inner fetch (real or stub).
-          fetch: createGeminiSanitizingFetch(
-            createOmniRouteFetchInterceptor({
-              apiKey,
-              baseURL: resolvedBaseURL,
-            })
-          ),
-        };
+        // Composition: sanitise Gemini tool schemas FIRST (T-06), then inject
+        // Bearer (T-04). Both layers are pure with respect to the other's
+        // concern (body vs headers) so order is logically free; wrapping the
+        // pure body-transform around the header-injecting interceptor reads
+        // cleaner and keeps T-06 testable in isolation against any inner fetch
+        // (real or stub). Each layer is gated by its feature flag; when both
+        // are disabled we fall back to the SDK's default fetch (apiKey only).
+        let composedFetch: typeof fetch | undefined;
+        if (wantFetchInterceptor) {
+          composedFetch = createOmniRouteFetchInterceptor({
+            apiKey,
+            baseURL: resolvedBaseURL,
+          });
+        }
+        if (wantGeminiSanitization) {
+          composedFetch = createGeminiSanitizingFetch(composedFetch ?? fetch);
+        }
+        return composedFetch
+          ? { apiKey, baseURL: resolvedBaseURL, fetch: composedFetch }
+          : { apiKey, baseURL: resolvedBaseURL };
       }
       return {};
     },
