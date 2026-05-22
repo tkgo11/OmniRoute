@@ -601,7 +601,7 @@ export default function AccountRow({
                     className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-md border border-border bg-bg-subtle hover:bg-black/[0.04] dark:hover:bg-white/[0.04] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[13px]">tune</span>
-                    {tr("editCutoffs", "Editar Cutoffs")}
+                    {tr("editCutoffs", "Edit cutoffs")}
                   </button>
                   <button
                     type="button"
@@ -616,7 +616,7 @@ export default function AccountRow({
                     >
                       refresh
                     </span>
-                    {tr("forceRefresh", "Refresh agora")}
+                    {tr("forceRefresh", "Refresh now")}
                   </button>
                 </div>
               </div>
