@@ -28,6 +28,8 @@ import { classifyWithConfig, DEFAULT_INTENT_CONFIG } from "./intentClassifier.ts
 import { selectProvider as selectAutoProvider } from "./autoCombo/engine.ts";
 import { selectWithStrategy } from "./autoCombo/routerStrategy.ts";
 import { getTaskFitness } from "./autoCombo/taskFitness.ts";
+import { parseAutoPrefix } from "./autoCombo/autoPrefix.ts";
+import { handlePipelineCombo } from "./autoCombo/pipelineRouter.ts";
 import {
   calculateFactors,
   calculateScore,
@@ -1707,6 +1709,32 @@ export async function handleComboChat({
     );
   } else if (allCombos) {
     log.info("COMBO", `${strategy} with nested resolution: ${orderedTargets.length} total targets`);
+  }
+
+  // Pipeline dispatch: route smart/pipeline-enabled combos through the multi-stage pipeline
+  if (strategy === "auto") {
+    const autoParsed = parseAutoPrefix(combo.name);
+    const autoVariant = autoParsed.valid ? autoParsed.variant : undefined;
+    if (autoVariant === "smart" || config.pipeline_enabled) {
+      try {
+        return await handlePipelineCombo({
+          body,
+          combo,
+          handleChatCore: handleSingleModel,
+          log,
+          settings,
+          signal,
+        });
+      } catch (pipelineErr) {
+        if (pipelineErr instanceof Error && pipelineErr.message === "PIPELINE_DISABLED") {
+          log.info("COMBO", "Pipeline disabled, falling through to standard auto routing");
+        } else {
+          log.warn("COMBO", "Pipeline dispatch failed, falling through to standard auto routing", {
+            err: pipelineErr,
+          });
+        }
+      }
+    }
   }
 
   if (strategy === "auto") {
