@@ -46,7 +46,7 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import type { AuthHook, Config, Plugin, PluginOptions, ProviderHook } from "@opencode-ai/plugin";
@@ -117,6 +117,8 @@ const featuresSchema = z
     mcpAutoEmit: z.boolean().optional(),
     mcpToken: z.string().min(1).optional(),
     fetchInterceptor: z.boolean().optional(),
+    usableOnly: z.boolean().optional(),
+    diskCache: z.boolean().optional(),
   })
   .strict();
 
@@ -877,6 +879,19 @@ export interface OmniRouteEnrichmentEntry {
     cacheRead?: number;
     cacheWrite?: number;
   };
+  /**
+   * Provider alias prefix seen in `/v1/models` ids (e.g. `cc`, `gemini-cli`).
+   * Populated by `defaultOmniRouteEnrichmentFetcher` from
+   * `/api/pricing/models` keys. Drives the `usableOnly` alias↔canonical
+   * resolution.
+   */
+  providerAlias?: string;
+  /**
+   * Canonical provider id used by `/api/providers` connections (e.g.
+   * `claude`, `gemini-cli`, `kiro`). Populated from the per-provider
+   * `entry.id` field inside `/api/pricing/models`.
+   */
+  providerCanonical?: string;
 }
 
 /** Map keyed by full model id (possibly namespaced, e.g. `cc/claude-sonnet-4-6`). */
@@ -941,12 +956,23 @@ export const defaultOmniRouteEnrichmentFetcher: OmniRouteEnrichmentFetcher = asy
           if (!slot || typeof slot !== "object") continue;
           const models = (slot as { models?: unknown[] }).models;
           if (!Array.isArray(models)) continue;
+          // Canonical id sits at the per-provider top level (e.g.
+          // `pricing-models.cc.id === 'claude'`). Falls back to the alias
+          // itself when missing — common case alias===canonical.
+          const canonicalRaw = (slot as { id?: unknown }).id;
+          const providerCanonical =
+            typeof canonicalRaw === "string" && canonicalRaw.length > 0
+              ? canonicalRaw
+              : providerAlias;
           for (const m of models) {
             if (!m || typeof m !== "object") continue;
             const id = (m as { id?: unknown }).id;
             if (typeof id !== "string" || id.length === 0) continue;
             const name = (m as { name?: unknown }).name;
-            const entry: OmniRouteEnrichmentEntry = {};
+            const entry: OmniRouteEnrichmentEntry = {
+              providerAlias,
+              providerCanonical,
+            };
             if (typeof name === "string" && name.trim().length > 0) entry.name = name;
             const namespaced = `${providerAlias}/${id}`;
             if (!out.has(namespaced)) out.set(namespaced, entry);
@@ -1161,6 +1187,244 @@ export function formatCompressionPipeline(pipeline: OmniRouteCompressionStep[]):
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// /api/providers (provider-connection status) — optional read used by the
+// `features.usableOnly` filter. Returns the operator's installed OmniRoute
+// provider connections, each with `provider` (canonical id), `isActive`,
+// `testStatus`. We treat a provider as USABLE when at least one of its
+// connections is `isActive: true && testStatus: 'active'`. Aliases (e.g.
+// `cc → claude`) are resolved through the enrichment map.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Subset of `/api/providers/connections[]` we read. Other fields are kept as a permissive index signature. */
+export interface OmniRouteProviderConnection {
+  /** Connection UUID. */
+  id: string;
+  /** Canonical provider id, e.g. `claude`, `gemini-cli`, `kiro`. Matches `entry.id` in `/api/pricing/models`. */
+  provider: string;
+  /** Connection auth flavor, e.g. `apikey`, `oauth`, `cookie`. */
+  authType?: string;
+  /** Operator-visible label. */
+  name?: string;
+  /** Operator toggle — when false, the connection is provisioned but disabled. */
+  isActive?: boolean;
+  /** Health-check verdict — `active` means routable; `expired`/`error`/`unavailable` mean not. */
+  testStatus?: string;
+  /** Permissive bag — additional fields (priority, backoffLevel, etc.) pass through untouched. */
+  [k: string]: unknown;
+}
+
+export type OmniRouteProvidersFetcher = (
+  baseURL: string,
+  apiKey: string,
+  timeoutMs?: number
+) => Promise<OmniRouteProviderConnection[]>;
+
+/**
+ * Default providers fetcher — calls `GET /api/providers`. Tolerates envelope
+ * shapes `{ connections: [...] }`, `[...]`, or `{ data: [...] }`. Soft-fails
+ * (returns []) on non-2xx or parse errors so the `usableOnly` filter
+ * gracefully degrades to "no filter" instead of hiding the whole catalog.
+ */
+export const defaultOmniRouteProvidersFetcher: OmniRouteProvidersFetcher = async (
+  baseURL,
+  apiKey,
+  timeoutMs = 10_000
+) => {
+  const empty: OmniRouteProviderConnection[] = [];
+  if (!baseURL || !apiKey) return empty;
+  const root = baseURL.replace(/\/v1\/?$/, "").replace(/\/$/, "");
+  const url = `${root}/api/providers`;
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: "application/json",
+      },
+      signal: ac.signal,
+    });
+    if (!res.ok) return empty;
+    const body = (await res.json()) as unknown;
+    const list = Array.isArray(body)
+      ? body
+      : Array.isArray((body as { connections?: unknown[] })?.connections)
+        ? (body as { connections: unknown[] }).connections
+        : Array.isArray((body as { data?: unknown[] })?.data)
+          ? (body as { data: unknown[] }).data
+          : [];
+    const out: OmniRouteProviderConnection[] = [];
+    for (const raw of list) {
+      if (!raw || typeof raw !== "object") continue;
+      const provider = (raw as { provider?: unknown }).provider;
+      if (typeof provider !== "string" || provider.length === 0) continue;
+      const id = (raw as { id?: unknown }).id;
+      const idStr = typeof id === "string" && id.length > 0 ? id : provider;
+      out.push({ ...(raw as Record<string, unknown>), id: idStr, provider });
+    }
+    return out;
+  } catch {
+    return empty;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+/**
+ * Compute the set of provider aliases that have at least one healthy,
+ * active connection. Resolves alias → canonical id through the enrichment
+ * map (which is keyed under both `${alias}/${id}` and bare `${id}` — we
+ * walk only the namespaced keys to derive the alias↔canonical mapping).
+ *
+ * Returns:
+ *   - `aliases`: set of alias prefixes safe to keep (e.g. `cc`, `gemini-cli`).
+ *   - `canonicals`: set of canonical provider ids (e.g. `claude`, `kiro`).
+ *
+ * Callers should treat membership in EITHER set as "usable" — raw model
+ * ids may be `<alias>/<model>` (`cc/claude-opus-4-7`) OR `<canonical>/<model>`
+ * (`claude/sonnet-4`) depending on the OmniRoute deployment's `/v1/models`
+ * surface shape.
+ *
+ * Subtract-filter semantics: callers MUST also keep models whose prefix is
+ * unknown to BOTH `/api/pricing/models` and `/api/providers` (e.g.
+ * agentrouter-style synthetic prefixes). The right boolean is "if I see this
+ * prefix in EITHER catalog table AND it's not usable, drop; otherwise keep".
+ */
+export function usableProviderAliasSet(
+  connections: OmniRouteProviderConnection[],
+  enrichment: OmniRouteEnrichmentMap | undefined
+): { aliases: Set<string>; canonicals: Set<string>; knownAliases: Set<string> } {
+  const usableCanonicals = new Set<string>();
+  for (const c of connections) {
+    if (!c || c.isActive !== true) continue;
+    if (typeof c.testStatus === "string" && c.testStatus !== "active") continue;
+    if (typeof c.provider === "string" && c.provider.length > 0) {
+      usableCanonicals.add(c.provider);
+    }
+  }
+  const aliases = new Set<string>();
+  const knownAliases = new Set<string>();
+  if (enrichment) {
+    // Walk enrichment entries to map alias → canonical via the metadata
+    // populated by `defaultOmniRouteEnrichmentFetcher`. Every entry carries
+    // its providerAlias + providerCanonical so the namespaced/bare key
+    // duplication is harmless. Collect EVERY alias we encounter (regardless
+    // of usability) into `knownAliases` so the downstream filter can decide
+    // "this prefix was in /api/pricing/models" in O(1) instead of O(E).
+    for (const entry of enrichment.values()) {
+      const alias = entry.providerAlias;
+      const canonical = entry.providerCanonical;
+      if (typeof alias !== "string" || alias.length === 0) continue;
+      knownAliases.add(alias);
+      if (typeof canonical !== "string" || canonical.length === 0) continue;
+      if (usableCanonicals.has(canonical)) aliases.add(alias);
+    }
+  }
+  // Always include every usable canonical as an alias too — handles the
+  // common case where `/v1/models` ids use the canonical id directly
+  // (e.g. `gemini-cli/gemini-1.5-pro`).
+  for (const canonical of usableCanonicals) aliases.add(canonical);
+  return { aliases, canonicals: usableCanonicals, knownAliases };
+}
+
+/**
+ * Decide whether a raw `/v1/models` id passes the `usableOnly` filter.
+ *
+ * Rules (subtract-filter — bias toward keep):
+ *   - id has no `/` → keep (combos/synthetic entries handled separately).
+ *   - prefix matches a known usable alias OR canonical → keep.
+ *   - prefix is unknown to BOTH the connection table AND the enrichment
+ *     map → keep (we can't prove it's NOT usable; could be agentrouter).
+ *   - prefix is known to the enrichment map BUT not in usable set → drop.
+ *
+ * Pure function — exported so static + dynamic hooks share the same
+ * verdict logic without divergence.
+ */
+export function isUsableRawModelId(
+  id: string,
+  usable: { aliases: Set<string>; canonicals: Set<string>; knownAliases: Set<string> },
+  enrichment: OmniRouteEnrichmentMap | undefined
+): boolean {
+  const slash = id.indexOf("/");
+  if (slash <= 0) return true;
+  const prefix = id.slice(0, slash);
+  if (usable.aliases.has(prefix) || usable.canonicals.has(prefix)) return true;
+  // O(1) "known prefix" check via pre-calculated knownAliases set.
+  // If prefix was in /api/pricing/models but is NOT in usable set,
+  // drop the model. Unknown prefixes (e.g. agentrouter-style synthetic)
+  // pass through (subtract-filter semantics).
+  if (usable.knownAliases.has(prefix)) return false;
+  return true;
+}
+
+/**
+ * Decide whether a combo passes the `usableOnly` filter. A combo keeps
+ * when AT LEAST ONE of its members maps to a usable canonical provider.
+ * Combos with zero resolvable members pass through (already degraded to
+ * all-false LCD posture and surfaced as cosmetic-only entries).
+ */
+export function isUsableCombo(
+  combo: OmniRouteRawCombo,
+  usable: { aliases: Set<string>; canonicals: Set<string>; knownAliases: Set<string> }
+): boolean {
+  const steps = Array.isArray(combo.models) ? combo.models : [];
+  if (steps.length === 0) return true;
+  let sawKnownProvider = false;
+  for (const step of steps) {
+    const pid = (step as unknown as { providerId?: unknown }).providerId;
+    if (typeof pid !== "string" || pid.length === 0) continue;
+    sawKnownProvider = true;
+    if (usable.canonicals.has(pid) || usable.aliases.has(pid)) return true;
+  }
+  // No member declared a providerId → can't prove unroutable; keep.
+  if (!sawKnownProvider) return true;
+  return false;
+}
+
+/**
+ * Slugify a combo display name into a copy/paste-friendly URL-safe segment.
+ * Lowercases, replaces any run of non-alphanumeric chars with a single dash,
+ * trims leading/trailing dashes. Empty input or all-special input returns
+ * the empty string (caller must fall back to the combo's UUID id).
+ *
+ * Example: `Claude Tier` → `claude-tier`, `GPT 5.5 / Pro` → `gpt-5-5-pro`.
+ */
+export function slugifyComboName(name: string): string {
+  if (typeof name !== "string") return "";
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/**
+ * Build a combo's static-block key (`combo/<slug>`), guaranteeing uniqueness
+ * across an entire static catalog. If `<slug>` is already present in `used`,
+ * suffixes a short UUID-prefix disambiguator from `combo.id` so the second
+ * combo doesn't silently overwrite the first. Mutates `used` in place by
+ * recording the chosen key. Returns the final `combo/<...>` key.
+ *
+ * Falls back to `combo/<id>` when the friendly name slugifies to the empty
+ * string (e.g. a combo named just punctuation).
+ */
+export function buildComboKey(combo: OmniRouteRawCombo, used: Set<string>): string {
+  const friendlyName = combo.name && combo.name.trim().length > 0 ? combo.name.trim() : combo.id;
+  let slug = slugifyComboName(friendlyName);
+  if (slug.length === 0) slug = combo.id;
+  let key = `combo/${slug}`;
+  if (used.has(key)) {
+    const tail = combo.id.split("-")[0] ?? combo.id;
+    key = `combo/${slug}-${tail}`;
+    // Defensive: in the (impossible) event the disambiguated key also
+    // collides, append the full id.
+    if (used.has(key)) key = `combo/${slug}-${combo.id}`;
+  }
+  used.add(key);
+  return key;
+}
+
 /**
  * Internal cache key: `${baseURL}::sha256(apiKey)`. We hash the apiKey so
  * the key is safe to log / inspect via debugger without leaking the secret.
@@ -1200,6 +1464,8 @@ export interface OmniRouteFetchCacheEntry {
   rawEnrichment: OmniRouteEnrichmentMap;
   /** Compression combos from /api/context/combos. Empty array when feature is disabled or fetch failed. */
   rawCompressionCombos: OmniRouteCompressionCombo[];
+  /** Provider connections from /api/providers. Empty array when feature is disabled or fetch failed. */
+  rawConnections: OmniRouteProviderConnection[];
   expiresAt: number;
 }
 
@@ -1256,6 +1522,7 @@ export function createOmniRouteProviderHook(
     combosFetcher?: OmniRouteCombosFetcher;
     enrichmentFetcher?: OmniRouteEnrichmentFetcher;
     compressionMetaFetcher?: OmniRouteCompressionMetaFetcher;
+    providersFetcher?: OmniRouteProvidersFetcher;
     now?: () => number;
     cache?: OmniRouteFetchCache;
   } = {}
@@ -1270,11 +1537,13 @@ export function createOmniRouteProviderHook(
   const enrichmentFetcher = deps.enrichmentFetcher ?? defaultOmniRouteEnrichmentFetcher;
   const compressionMetaFetcher =
     deps.compressionMetaFetcher ?? defaultOmniRouteCompressionMetaFetcher;
+  const providersFetcher = deps.providersFetcher ?? defaultOmniRouteProvidersFetcher;
   // Features defaults (mirror v0.1.0 behavior when unset).
   const features = resolved.features ?? {};
   const wantCombos = features.combos !== false;
   const wantEnrichment = features.enrichment !== false;
   const wantCompressionMeta = features.compressionMetadata === true;
+  const wantUsableOnly = features.usableOnly === true;
   const now = deps.now ?? Date.now;
   // T-07: cache holds RAW fetch results (not pre-derived ModelV2) so that
   // the config-shim hook can share the same cache and derive its stripped
@@ -1324,11 +1593,13 @@ export function createOmniRouteProviderHook(
       let rawCombos: OmniRouteRawCombo[];
       let rawEnrichment: OmniRouteEnrichmentMap;
       let rawCompressionCombos: OmniRouteCompressionCombo[];
+      let rawConnections: OmniRouteProviderConnection[];
       if (cached && cached.expiresAt > t) {
         rawModels = cached.rawModels;
         rawCombos = cached.rawCombos;
         rawEnrichment = cached.rawEnrichment;
         rawCompressionCombos = cached.rawCompressionCombos;
+        rawConnections = cached.rawConnections;
       } else {
         // Models fetch is required (no catalog otherwise → silent provider
         // disappearance). We do NOT wrap this in a try; let the error
@@ -1378,11 +1649,29 @@ export function createOmniRouteProviderHook(
           }
         }
 
+        // Provider-connections fetch. Off by default, gated by
+        // features.usableOnly. Soft-fails to empty array — when the
+        // connection table is unreadable we skip the filter entirely
+        // (subtract-filter semantics: don't drop everything we couldn't
+        // verify).
+        rawConnections = [];
+        if (wantUsableOnly) {
+          try {
+            rawConnections = await providersFetcher(baseURL, apiKey, 10_000);
+          } catch (err) {
+            console.warn(
+              "[omniroute-plugin] /api/providers fetch failed; usableOnly filter disabled for this refresh",
+              err
+            );
+          }
+        }
+
         cache.set(cacheKey, {
           rawModels,
           rawCombos,
           rawEnrichment,
           rawCompressionCombos,
+          rawConnections,
           expiresAt: t + resolved.modelCacheTtl,
         });
 
@@ -1393,7 +1682,8 @@ export function createOmniRouteProviderHook(
           `[omniroute-plugin] catalog refreshed for providerId=${resolved.providerId} baseURL=${baseURL}: ` +
             `${rawModels.length} models + ${rawCombos.length} combos + ` +
             `${rawEnrichment.size} enrichment entries + ` +
-            `${rawCompressionCombos.length} compression combos ` +
+            `${rawCompressionCombos.length} compression combos + ` +
+            `${rawConnections.length} connections ` +
             `(TTL=${resolved.modelCacheTtl}ms)`
         );
       }
@@ -1406,6 +1696,16 @@ export function createOmniRouteProviderHook(
         if (entry.id) rawModelById.set(entry.id, entry);
       }
 
+      // usableOnly filter — compute the set of usable alias prefixes once
+      // per refresh. Empty when feature is off OR connection fetch failed
+      // OR no connections returned, in which case we keep everything
+      // (subtract-filter semantics: only drop when we can prove a prefix
+      // is NOT usable; never hide the catalog on a soft-fail).
+      const usable =
+        wantUsableOnly && rawConnections.length > 0
+          ? usableProviderAliasSet(rawConnections, rawEnrichment)
+          : undefined;
+
       // Map raw models → ModelV2 keyed by id. When enrichment data is
       // present (features.enrichment, default on), overlay the nicer
       // display name + pricing from /api/pricing/models. The enrichment
@@ -1414,6 +1714,7 @@ export function createOmniRouteProviderHook(
       const models: Record<string, ModelV2> = {};
       for (const entry of rawModels) {
         if (!entry.id) continue;
+        if (usable && !isUsableRawModelId(entry.id, usable, rawEnrichment)) continue;
         const model = mapRawModelToModelV2(entry, {
           providerId: resolved.providerId,
           baseURL,
@@ -1435,9 +1736,28 @@ export function createOmniRouteProviderHook(
       // model entries; unknown member ids are silently dropped before
       // mapComboToModelV2 sees them, which then degrades to the
       // all-false LCD posture if zero members remain.
+      //
+      // Combos are keyed under the `combo/<slug>` namespace so the TUI
+      // picker separates them from provider/model pairs and the UUID
+      // never surfaces. This mirrors `buildStaticProviderEntry` so the
+      // static + dynamic catalogs publish identical keys.
+      const comboNames = new Set<string>();
+      for (const combo of rawCombos) {
+        if (!combo || combo.isHidden === true) continue;
+        const n = combo.name && combo.name.trim().length > 0 ? combo.name.trim() : combo.id;
+        if (typeof n === "string" && n.length > 0) comboNames.add(n);
+      }
+      for (const key of Object.keys(models)) {
+        if (comboNames.has(key)) delete models[key];
+      }
+
+      const usedComboKeys = new Set<string>();
       for (const combo of rawCombos) {
         if (!combo.id) continue;
         if (combo.isHidden === true) continue;
+        // usableOnly filter — drop combos whose members all map to
+        // non-usable providers.
+        if (usable && !isUsableCombo(combo, usable)) continue;
 
         const memberSteps = Array.isArray(combo.models) ? combo.models : [];
         const memberEntries: OmniRouteRawModelEntry[] = [];
@@ -1452,35 +1772,48 @@ export function createOmniRouteProviderHook(
         }
 
         const mapped = mapComboToModelV2(combo, memberEntries, resolved.providerId, baseURL);
+        const hasMembers = memberEntries.length > 0;
 
         // Apply enrichment overlay to combos too (OmniRoute's
         // /api/pricing/models surfaces combos alongside provider-scoped
         // models with curated names).
         applyEnrichment(mapped, rawEnrichment.get(combo.id));
 
+        // `Combo: ` prefix surfaces the combo nature in OC's model picker.
+        // Idempotent guard covers the case where enrichment overwrote
+        // mapped.name with an already-prefixed string. Mirrors the
+        // static-hook Combo:-prefix decoration.
+        if (!mapped.name.startsWith("Combo: ")) {
+          mapped.name = `Combo: ${mapped.name}`;
+        }
+
         // Optionally decorate combo name with its compression pipeline.
-        // Only fires when features.compressionMetadata: true and OmniRoute
-        // returned at least one default compression combo.
-        if (defaultCompression && defaultCompression.pipeline.length > 0) {
+        // Only fires when features.compressionMetadata: true, OmniRoute
+        // returned at least one default compression combo, AND the
+        // combo has resolvable members — claiming compression on an
+        // unroutable combo would mislead the picker.
+        if (hasMembers && defaultCompression && defaultCompression.pipeline.length > 0) {
           const tag = formatCompressionPipeline(defaultCompression.pipeline);
           if (tag.length > 0 && !mapped.name.includes(tag)) {
             mapped.name = `${mapped.name} ${tag}`;
           }
         }
 
-        // Collision policy: combos win. Warn ONCE per (cacheKey, comboId)
-        // when overwriting a same-id raw model so the operator can spot
+        const comboKey = buildComboKey(combo, usedComboKeys);
+
+        // Collision policy: combos win. Warn ONCE per (cacheKey, comboKey)
+        // when overwriting a same-key raw model so the operator can spot
         // the unusual naming choice without log spam.
-        if (Object.prototype.hasOwnProperty.call(models, combo.id)) {
-          const dedupeKey = `${cacheKey}::${combo.id}`;
+        if (Object.prototype.hasOwnProperty.call(models, comboKey)) {
+          const dedupeKey = `${cacheKey}::${comboKey}`;
           if (!collisionWarned.has(dedupeKey)) {
             collisionWarned.add(dedupeKey);
             console.warn(
-              `[omniroute-plugin] combo id "${combo.id}" collides with a model id; combo wins.`
+              `[omniroute-plugin] combo key "${comboKey}" collides with a model id; combo wins.`
             );
           }
         }
-        models[combo.id] = mapped;
+        models[comboKey] = mapped;
       }
 
       return models;
@@ -1977,15 +2310,53 @@ export function buildStaticProviderEntry(
   rawCombos: OmniRouteRawCombo[],
   opts: ReturnType<typeof resolveOmniRoutePluginOptions>,
   baseURL: string,
-  apiKey: string
+  apiKey: string,
+  enrichment?: OmniRouteEnrichmentMap,
+  compressionCombos?: OmniRouteCompressionCombo[],
+  connections?: OmniRouteProviderConnection[]
 ): OmniRouteStaticProviderEntry {
   const models: Record<string, OmniRouteStaticModelEntry> = {};
+
+  // usableOnly filter — compute once when feature enabled AND we have
+  // connection data to filter against. Soft-fail (empty connections list)
+  // disables the filter rather than hiding the catalog.
+  const wantUsableOnly = opts.features?.usableOnly === true;
+  const usable =
+    wantUsableOnly && connections && connections.length > 0
+      ? usableProviderAliasSet(connections, enrichment)
+      : undefined;
+
+  // Build a name-set of every non-hidden combo from `/api/combos`. OmniRoute
+  // pre-mirrors combos into `/v1/models` with the friendly name as the raw
+  // id (e.g. `claude-primary`, `gemini-pro`), so without dedup the static
+  // catalog ends up with both `claude-primary` (raw, opaque) AND the same
+  // combo under `combo/claude-primary` (rich LCD). We suppress the raw twin
+  // so each combo surfaces exactly once, under the `combo/` namespace.
+  const comboNames = new Set<string>();
+  for (const combo of rawCombos) {
+    if (!combo || combo.isHidden === true) continue;
+    const name = combo.name && combo.name.trim().length > 0 ? combo.name.trim() : combo.id;
+    if (typeof name === "string" && name.length > 0) comboNames.add(name);
+  }
 
   // Raw model entries → stripped per-model shape.
   for (const raw of rawModels) {
     if (!raw.id) continue;
+    // Skip the 20 named no-slash entries that shadow combos under the
+    // `combo/<name>` namespace. We keep `codex-auto-review` and any other
+    // future no-slash raw entry that doesn't have a matching combo.
+    if (comboNames.has(raw.id)) continue;
+    if (usable && !isUsableRawModelId(raw.id, usable, enrichment)) continue;
     const caps = raw.capabilities ?? {};
-    const entry: OmniRouteStaticModelEntry = { name: raw.id };
+    // Enrichment overlay: `/api/pricing/models` carries human display names
+    // (e.g. "Claude Opus 4.7" for raw id "cc/claude-opus-4-7"). The OC TUI
+    // model picker reads this `name` straight from the static block on
+    // OC ≤1.15.5 where the dynamic provider hook never fires. Falls back
+    // to the raw id when no enrichment entry is found.
+    const enrichmentName = enrichment?.get(raw.id)?.name;
+    const entry: OmniRouteStaticModelEntry = {
+      name: enrichmentName && enrichmentName.length > 0 ? enrichmentName : raw.id,
+    };
 
     const attachment = caps.attachment ?? caps.vision;
     if (typeof attachment === "boolean") entry.attachment = attachment;
@@ -2029,16 +2400,38 @@ export function buildStaticProviderEntry(
     models[raw.id] = entry;
   }
 
-  // Combo entries → stripped LCD shape. Combos win on id collision (matches
-  // the dynamic provider hook's resolution order — see T-05).
+  // Combo entries → stripped LCD shape. Each combo is keyed as
+  // `combo/<friendly-name>` so the OC TUI model picker shows them under a
+  // distinct namespace (e.g. `combo/claude-primary`) instead of the opaque
+  // upstream UUID id (e.g. `b4a0211e-e3e1-472d-b252-fb9bf6d1c935`).
   const rawModelById = new Map<string, OmniRouteRawModelEntry>();
   for (const m of rawModels) {
     if (m.id) rawModelById.set(m.id, m);
   }
 
+  // Resolve the default compression pipeline once — its short signature
+  // (e.g. `[rtk:standard → caveman:full]`) is appended to every routable
+  // combo `name` so operators can see what compression a combo applies
+  // at a glance. Provider hook does the same decoration when feature is
+  // on. Suffix is suppressed for combos with no resolvable members —
+  // claiming compression on an unroutable combo would mislead the
+  // picker.
+  let compressionSuffix = "";
+  if (compressionCombos && compressionCombos.length > 0) {
+    const def = compressionCombos.find((c) => c.isDefault === true);
+    if (def) {
+      const sig = formatCompressionPipeline(def.pipeline);
+      if (sig.length > 0) compressionSuffix = ` ${sig}`;
+    }
+  }
+
+  // Track combo keys to detect slug collisions across the catalog.
+  const usedComboKeys = new Set<string>();
+
   for (const combo of rawCombos) {
     if (!combo.id) continue;
     if (combo.isHidden === true) continue;
+    if (usable && !isUsableCombo(combo, usable)) continue;
 
     const memberSteps = Array.isArray(combo.models) ? combo.models : [];
     const memberEntries: OmniRouteRawModelEntry[] = [];
@@ -2050,7 +2443,13 @@ export function buildStaticProviderEntry(
     }
 
     const hasMembers = memberEntries.length > 0;
-    const displayName = combo.name && combo.name.trim().length > 0 ? combo.name : combo.id;
+    const friendlyName = combo.name && combo.name.trim().length > 0 ? combo.name.trim() : combo.id;
+    // `Combo: ` prefix surfaces the combo nature in OC's model picker — the
+    // catalog key (`combo/<slug>`) is already namespaced, but the picker
+    // shows `name`, so prefix the display string too.
+    const prefixedName = `Combo: ${friendlyName}`;
+    const displayName =
+      hasMembers && compressionSuffix ? `${prefixedName}${compressionSuffix}` : prefixedName;
     const entry: OmniRouteStaticModelEntry = { name: displayName };
 
     if (hasMembers) {
@@ -2101,7 +2500,12 @@ export function buildStaticProviderEntry(
       entry.tool_call = false;
     }
 
-    models[combo.id] = entry;
+    // Key under `combo/<slug>` (e.g. `combo/claude-primary`) so the
+    // namespace cleanly separates combos from raw provider/model pairs
+    // and so the key is copy/paste-friendly. Slug collisions across
+    // combos are disambiguated with a short UUID-prefix suffix; see
+    // `buildComboKey` for the policy.
+    models[buildComboKey(combo, usedComboKeys)] = entry;
   }
 
   return {
@@ -2139,6 +2543,88 @@ type AuthJsonShape = Record<string, AuthJsonApiEntry | { type?: string; [k: stri
  * Exported as a dependency-injectable function on `createOmniRouteConfigHook`
  * so tests can stub it without monkey-patching `node:fs/promises`.
  */
+// ─────────────────────────────────────────────────────────────────────────
+// Disk-cache fallback. Persists the last successful raw-fetch snapshot to
+// `${OPENCODE_DATA_DIR ?? ~/.local/share/opencode}/plugins/omniroute-<providerId>.json`.
+// When `/v1/models` is unreachable (e.g. IP whitelist drop, offline laptop)
+// AND the in-memory cache is cold, the config hook reads from disk so the
+// last-known catalog still surfaces in OC's model picker. Feature-flagged:
+// `features.diskCache !== false` (default-on).
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Disk snapshot envelope. Versioned for forward-compat. */
+interface OmniRouteDiskSnapshot {
+  v: 1;
+  rawModels: OmniRouteRawModelEntry[];
+  rawCombos: OmniRouteRawCombo[];
+  /** Serialised as array-of-pairs (Map is not JSON-friendly). */
+  rawEnrichment: Array<[string, OmniRouteEnrichmentEntry]>;
+  rawCompressionCombos: OmniRouteCompressionCombo[];
+  rawConnections: OmniRouteProviderConnection[];
+  /** When the snapshot was written (epoch ms). */
+  writtenAt: number;
+}
+
+/** Resolve the disk-snapshot path for a given providerId. */
+export function diskSnapshotPath(providerId: string): string {
+  const dir = process.env.OPENCODE_DATA_DIR ?? path.join(os.homedir(), ".local/share/opencode");
+  return path.join(dir, "plugins", `omniroute-${providerId}.json`);
+}
+
+export type OmniRouteDiskSnapshotWriter = (
+  providerId: string,
+  entry: Omit<OmniRouteFetchCacheEntry, "expiresAt">
+) => Promise<void>;
+
+export type OmniRouteDiskSnapshotReader = (
+  providerId: string
+) => Promise<Omit<OmniRouteFetchCacheEntry, "expiresAt"> | undefined>;
+
+/** Best-effort disk write. Soft-fails on any I/O error (no exception thrown). */
+export const defaultDiskSnapshotWriter: OmniRouteDiskSnapshotWriter = async (providerId, entry) => {
+  try {
+    const file = diskSnapshotPath(providerId);
+    await mkdir(path.dirname(file), { recursive: true });
+    const snapshot: OmniRouteDiskSnapshot = {
+      v: 1,
+      rawModels: entry.rawModels,
+      rawCombos: entry.rawCombos,
+      rawEnrichment: Array.from(entry.rawEnrichment.entries()),
+      rawCompressionCombos: entry.rawCompressionCombos,
+      rawConnections: entry.rawConnections,
+      writtenAt: Date.now(),
+    };
+    await writeFile(file, JSON.stringify(snapshot), "utf8");
+  } catch {
+    // Soft-fail; caller already has the in-memory cache.
+  }
+};
+
+/** Best-effort disk read. Returns `undefined` when missing/corrupt/unreadable. */
+export const defaultDiskSnapshotReader: OmniRouteDiskSnapshotReader = async (providerId) => {
+  try {
+    const file = diskSnapshotPath(providerId);
+    const body = await readFile(file, "utf8");
+    const parsed = JSON.parse(body) as Partial<OmniRouteDiskSnapshot>;
+    if (!parsed || parsed.v !== 1) return undefined;
+    return {
+      rawModels: Array.isArray(parsed.rawModels) ? parsed.rawModels : [],
+      rawCombos: Array.isArray(parsed.rawCombos) ? parsed.rawCombos : [],
+      rawEnrichment: new Map(Array.isArray(parsed.rawEnrichment) ? parsed.rawEnrichment : []),
+      rawCompressionCombos: Array.isArray(parsed.rawCompressionCombos)
+        ? parsed.rawCompressionCombos
+        : [],
+      rawConnections: Array.isArray(parsed.rawConnections) ? parsed.rawConnections : [],
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+/** No-op disk-cache pair — used by tests to avoid filesystem side effects. */
+export const noopDiskSnapshotWriter: OmniRouteDiskSnapshotWriter = async () => {};
+export const noopDiskSnapshotReader: OmniRouteDiskSnapshotReader = async () => undefined;
+
 export type OmniRouteReadAuthJson = () => Promise<AuthJsonShape | undefined | null>;
 
 export const defaultReadAuthJson: OmniRouteReadAuthJson = async () => {
@@ -2220,6 +2706,11 @@ export function createOmniRouteConfigHook(
     readAuthJson?: OmniRouteReadAuthJson;
     fetcher?: OmniRouteModelsFetcher;
     combosFetcher?: OmniRouteCombosFetcher;
+    enrichmentFetcher?: OmniRouteEnrichmentFetcher;
+    compressionMetaFetcher?: OmniRouteCompressionMetaFetcher;
+    providersFetcher?: OmniRouteProvidersFetcher;
+    diskSnapshotReader?: OmniRouteDiskSnapshotReader;
+    diskSnapshotWriter?: OmniRouteDiskSnapshotWriter;
     now?: () => number;
     cache?: OmniRouteFetchCache;
     logger?: { warn: (...args: unknown[]) => void };
@@ -2229,9 +2720,20 @@ export function createOmniRouteConfigHook(
   const readAuthJson = deps.readAuthJson ?? defaultReadAuthJson;
   const fetcher = deps.fetcher ?? defaultOmniRouteModelsFetcher;
   const combosFetcher = deps.combosFetcher ?? defaultOmniRouteCombosFetcher;
+  const enrichmentFetcher = deps.enrichmentFetcher ?? defaultOmniRouteEnrichmentFetcher;
+  const compressionMetaFetcher =
+    deps.compressionMetaFetcher ?? defaultOmniRouteCompressionMetaFetcher;
+  const providersFetcher = deps.providersFetcher ?? defaultOmniRouteProvidersFetcher;
+  const diskSnapshotReader = deps.diskSnapshotReader ?? defaultDiskSnapshotReader;
+  const diskSnapshotWriter = deps.diskSnapshotWriter ?? defaultDiskSnapshotWriter;
   const now = deps.now ?? Date.now;
   const cache: OmniRouteFetchCache = deps.cache ?? new Map();
   const logger = deps.logger ?? console;
+  const features = resolved.features ?? {};
+  const wantEnrichment = features.enrichment !== false;
+  const wantCompressionMeta = features.compressionMetadata === true;
+  const wantUsableOnly = features.usableOnly === true;
+  const wantDiskCache = features.diskCache !== false;
 
   return async (input: Config) => {
     // (e) operator override — `input.provider[providerId]` already set →
@@ -2294,14 +2796,25 @@ export function createOmniRouteConfigHook(
 
     let rawModels: OmniRouteRawModelEntry[];
     let rawCombos: OmniRouteRawCombo[];
+    let rawEnrichment: OmniRouteEnrichmentMap;
+    let rawCompressionCombos: OmniRouteCompressionCombo[];
+    let rawConnections: OmniRouteProviderConnection[];
 
     if (cached && cached.expiresAt > t) {
       rawModels = cached.rawModels;
       rawCombos = cached.rawCombos;
+      rawEnrichment = cached.rawEnrichment;
+      rawCompressionCombos = cached.rawCompressionCombos;
+      rawConnections = cached.rawConnections;
     } else {
       // Fail-open fetcher errors: on /v1/models throw, fall back to empty
       // catalog (still publish a stub block so OC has a complete-shape
-      // entry); on /api/combos throw, publish models-only.
+      // entry); on /api/combos throw, publish models-only. Disk-cache
+      // fallback below recovers the last-known-good catalog when the
+      // fetcher threw (network down / 403 / timeout) AND features.diskCache
+      // !== false. A 0-entry SUCCESS (fresh tenant) does NOT trigger
+      // disk fallback — that's a valid empty catalog.
+      let modelsFetchThrew = false;
       try {
         rawModels = await fetcher(baseURL, apiKey, 10_000);
       } catch (err) {
@@ -2310,7 +2823,9 @@ export function createOmniRouteConfigHook(
           err
         );
         rawModels = [];
+        modelsFetchThrew = true;
       }
+      const modelsFetchOk = !modelsFetchThrew && rawModels.length > 0;
 
       rawCombos = [];
       try {
@@ -2322,23 +2837,112 @@ export function createOmniRouteConfigHook(
         );
       }
 
+      // Eagerly fetch enrichment so the static block can overlay human
+      // display names on raw model ids. On OC ≤1.15.5 the dynamic
+      // `provider.models` hook never fires in `serve` mode, so the static
+      // block IS what reaches `/provider` and the TUI model picker.
+      // Gated by `features.enrichment` (default-on). Soft-fail on error —
+      // we still publish a name-less catalog if /api/pricing/models is
+      // unreachable.
+      rawEnrichment = new Map();
+      if (wantEnrichment) {
+        try {
+          rawEnrichment = await enrichmentFetcher(baseURL, apiKey, 10_000);
+        } catch (err) {
+          logger.warn(
+            "[omniroute-plugin] config shim: /api/pricing/models fetch failed; publishing raw-id static catalog",
+            err
+          );
+        }
+      }
+
+      // Compression-metadata fetch — opt-in via features.compressionMetadata.
+      // When on, the default pipeline is appended to every combo `name` so
+      // the TUI picker advertises which compression a combo applies.
+      rawCompressionCombos = [];
+      if (wantCompressionMeta) {
+        try {
+          rawCompressionCombos = await compressionMetaFetcher(baseURL, apiKey, 10_000);
+        } catch (err) {
+          logger.warn(
+            "[omniroute-plugin] config shim: /api/context/combos fetch failed; publishing combos without compression suffix",
+            err
+          );
+        }
+      }
+
+      // Provider-connections fetch — opt-in via features.usableOnly. When
+      // on, the static catalog filters out models/combos whose canonical
+      // provider has no active connection. Soft-fail (empty list) disables
+      // the filter for this refresh, never hiding the whole catalog.
+      rawConnections = [];
+      if (wantUsableOnly) {
+        try {
+          rawConnections = await providersFetcher(baseURL, apiKey, 10_000);
+        } catch (err) {
+          logger.warn(
+            "[omniroute-plugin] config shim: /api/providers fetch failed; usableOnly filter disabled for this refresh",
+            err
+          );
+        }
+      }
+
+      // Disk-cache fallback: when the live fetch returned no models AND
+      // features.diskCache !== false, hydrate from the last-known-good
+      // snapshot so OC still surfaces a usable catalog (e.g. IP whitelist
+      // drop, offline laptop). The snapshot is whatever we last wrote on
+      // a healthy refresh; staleness is bounded only by how recently the
+      // user was online.
+      if (modelsFetchThrew && wantDiskCache) {
+        const snapshot = await diskSnapshotReader(resolved.providerId);
+        if (snapshot && snapshot.rawModels.length > 0) {
+          logger.warn(
+            `[omniroute-plugin] config shim: /v1/models unreachable; using stale disk cache (${snapshot.rawModels.length} models)`
+          );
+          rawModels = snapshot.rawModels;
+          rawCombos = snapshot.rawCombos;
+          rawEnrichment = snapshot.rawEnrichment;
+          rawCompressionCombos = snapshot.rawCompressionCombos;
+          rawConnections = snapshot.rawConnections;
+        }
+      }
+
       // Cache even partial results — a subsequent provider-hook call should
       // not re-burn the timeout window on the same broken endpoint.
-      // Config-hook never fetches enrichment/compression directly: the
-      // static block doesn't surface them today (sibling shape is name+
-      // capability only). Provider-hook may fetch them later and write
-      // back into the same cache key; we seed empty values so the cache
-      // entry shape remains consistent.
       cache.set(cacheKey, {
         rawModels,
         rawCombos,
-        rawEnrichment: new Map(),
-        rawCompressionCombos: [],
+        rawEnrichment,
+        rawCompressionCombos,
+        rawConnections,
         expiresAt: t + resolved.modelCacheTtl,
       });
+
+      // Disk-cache write: persist the last successful (or any non-empty)
+      // catalog so a subsequent cold start with a failed fetch can recover.
+      // Best-effort; soft-fail keeps us moving when the data dir isn't
+      // writable (e.g. read-only container).
+      if (modelsFetchOk && wantDiskCache) {
+        await diskSnapshotWriter(resolved.providerId, {
+          rawModels,
+          rawCombos,
+          rawEnrichment,
+          rawCompressionCombos,
+          rawConnections,
+        });
+      }
     }
 
-    const block = buildStaticProviderEntry(rawModels, rawCombos, resolved, baseURL, apiKey);
+    const block = buildStaticProviderEntry(
+      rawModels,
+      rawCombos,
+      resolved,
+      baseURL,
+      apiKey,
+      rawEnrichment,
+      rawCompressionCombos,
+      rawConnections
+    );
 
     // Mutate the input.provider map. The Config type declares
     // `provider?: {[key: string]: ProviderConfig}` — we initialise the
@@ -2359,7 +2963,6 @@ export function createOmniRouteConfigHook(
     // as provider-block emit): if input.mcp[providerId] is already set,
     // we leave it alone.
     // ─────────────────────────────────────────────────────────────────────
-    const features = resolved.features ?? {};
     if (features.mcpAutoEmit === true) {
       const mcpKey = features.mcpToken ?? apiKey;
       if (!mcpKey) {
