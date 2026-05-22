@@ -316,6 +316,21 @@ export const APIKEY_PROVIDERS = {
     hasFree: true,
     freeNote: "Free models at $0/token with :free suffix - 20 RPM / 200 RPD",
   },
+  "api-airforce": {
+    id: "api-airforce",
+    alias: "af",
+    name: "Api.airforce",
+    icon: "flight",
+    color: "#1E3A5F",
+    textIcon: "AF",
+    website: "https://api.airforce",
+    hasFree: true,
+    freeNote:
+      "55 free tier models including Grok-3, Claude 3.7, Qwen3, Kimi-K2, Gemini 2.5 Flash, DeepSeek-V3",
+    apiHint:
+      "Get your API key from https://panel.api.airforce — OpenAI-compatible endpoint at https://api.airforce/v1",
+    capabilities: { embeddings: false },
+  },
   astraflow: {
     id: "astraflow",
     alias: "astraflow",
