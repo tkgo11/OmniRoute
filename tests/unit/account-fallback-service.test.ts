@@ -33,6 +33,26 @@ const {
 
 const { selectAccount } = accountSelector;
 
+/** Build a full ProviderProfile from partial overrides (test helper). */
+function makeProfile(overrides: Record<string, unknown> = {}): any {
+  return {
+    baseCooldownMs: 125,
+    useUpstreamRetryHints: false,
+    maxBackoffSteps: 3,
+    failureThreshold: 60,
+    resetTimeoutMs: 5000,
+    transientCooldown: 125,
+    rateLimitCooldown: 125,
+    maxBackoffLevel: 3,
+    circuitBreakerThreshold: 60,
+    circuitBreakerReset: 5000,
+    providerFailureThreshold: 5,
+    providerFailureWindowMs: 300000,
+    providerCooldownMs: 60000,
+    ...overrides,
+  };
+}
+
 function withMockedNow(now, fn) {
   const originalNow = Date.now;
   Date.now = () => now;
@@ -75,13 +95,7 @@ test("checkFallbackError treats non-429 exhausted credits as long quota cooldown
 });
 
 test("checkFallbackError keeps API-key 429 exhausted-credit text on the resilience cooldown path", () => {
-  const result = checkFallbackError(429, "credit_balance_too_low", 0, null, "openai", null, {
-    baseCooldownMs: 125,
-    useUpstreamRetryHints: false,
-    maxBackoffSteps: 3,
-    failureThreshold: 60,
-    resetTimeoutMs: 5000,
-  });
+  const result = checkFallbackError(429, "credit_balance_too_low", 0, null, "openai", null, makeProfile());
 
   assert.equal(result.shouldFallback, true);
   assert.equal(result.reason, RateLimitReason.RATE_LIMIT_EXCEEDED);
@@ -90,13 +104,7 @@ test("checkFallbackError keeps API-key 429 exhausted-credit text on the resilien
 });
 
 test("checkFallbackError preserves OAuth 429 exhausted-credit semantics", () => {
-  const result = checkFallbackError(429, "credit_balance_too_low", 0, null, "codex", null, {
-    baseCooldownMs: 125,
-    useUpstreamRetryHints: false,
-    maxBackoffSteps: 3,
-    failureThreshold: 60,
-    resetTimeoutMs: 5000,
-  });
+  const result = checkFallbackError(429, "credit_balance_too_low", 0, null, "codex", null, makeProfile());
 
   assert.equal(result.shouldFallback, true);
   assert.equal(result.reason, RateLimitReason.QUOTA_EXHAUSTED);
@@ -105,13 +113,7 @@ test("checkFallbackError preserves OAuth 429 exhausted-credit semantics", () => 
 });
 
 test("checkFallbackError keeps API-key 429 quota text on the status-based resilience path", () => {
-  const result = checkFallbackError(429, "quota exceeded", 0, null, "openai", null, {
-    baseCooldownMs: 125,
-    useUpstreamRetryHints: false,
-    maxBackoffSteps: 3,
-    failureThreshold: 60,
-    resetTimeoutMs: 5000,
-  });
+  const result = checkFallbackError(429, "quota exceeded", 0, null, "openai", null, makeProfile());
 
   assert.equal(result.shouldFallback, true);
   assert.equal(result.reason, RateLimitReason.RATE_LIMIT_EXCEEDED);
@@ -200,9 +202,9 @@ test("filterAvailableAccounts skips exclusion and active cooldowns but keeps rec
 test("getEarliestRateLimitedUntil returns the shortest future cooldown and formatRetryAfter humanizes it", () => {
   withMockedNow(1_700_000_000_000, () => {
     const earliest = getEarliestRateLimitedUntil([
-      { id: "expired", rateLimitedUntil: new Date(Date.now() - 5_000).toISOString() },
-      { id: "later", rateLimitedUntil: new Date(Date.now() + 90_000).toISOString() },
-      { id: "earliest", rateLimitedUntil: new Date(Date.now() + 30_000).toISOString() },
+      { rateLimitedUntil: new Date(Date.now() - 5_000).toISOString() },
+      { rateLimitedUntil: new Date(Date.now() + 90_000).toISOString() },
+      { rateLimitedUntil: new Date(Date.now() + 30_000).toISOString() },
     ]);
 
     assert.equal(earliest, new Date(Date.now() + 30_000).toISOString());
@@ -378,13 +380,11 @@ test("recordModelLockoutFailure uses provider profile cooldowns, backoff, and re
   try {
     const compatibleProvider = "openai-compatible-custom-node";
     const compatibleModel = "custom-model-a";
-    const profile = {
-      baseCooldownMs: 125,
-      useUpstreamRetryHints: false,
+    const profile = makeProfile({
       maxBackoffSteps: 2,
-      failureThreshold: 60,
+      maxBackoffLevel: 2,
       resetTimeoutMs: 500,
-    };
+    });
 
     const first = recordModelLockoutFailure(
       compatibleProvider,
@@ -630,13 +630,7 @@ test("checkFallbackError locks model until tomorrow for non-429 daily quota exha
 });
 
 test("checkFallbackError routes API-key 429 'try again tomorrow' through resilience cooldown", () => {
-  const result = checkFallbackError(429, "Please try again tomorrow", 0, null, "openai", null, {
-    baseCooldownMs: 125,
-    useUpstreamRetryHints: false,
-    maxBackoffSteps: 3,
-    failureThreshold: 60,
-    resetTimeoutMs: 5000,
-  });
+  const result = checkFallbackError(429, "Please try again tomorrow", 0, null, "openai", null, makeProfile());
   assert.equal(result.shouldFallback, true);
   assert.equal(result.dailyQuotaExhausted, undefined);
   assert.equal(result.cooldownMs, 125);
@@ -650,13 +644,7 @@ test("checkFallbackError routes API-key 429 'daily quota' text through resilienc
     null,
     "openai",
     null,
-    {
-      baseCooldownMs: 125,
-      useUpstreamRetryHints: false,
-      maxBackoffSteps: 3,
-      failureThreshold: 60,
-      resetTimeoutMs: 5000,
-    }
+    makeProfile()
   );
   assert.equal(result.shouldFallback, true);
   assert.equal(result.dailyQuotaExhausted, undefined);
@@ -671,13 +659,7 @@ test("checkFallbackError preserves OAuth 429 daily quota semantics", () => {
     null,
     "codex",
     null,
-    {
-      baseCooldownMs: 125,
-      useUpstreamRetryHints: false,
-      maxBackoffSteps: 3,
-      failureThreshold: 60,
-      resetTimeoutMs: 5000,
-    }
+    makeProfile()
   );
 
   assert.equal(result.shouldFallback, true);
@@ -703,13 +685,7 @@ test("recordModelLockoutFailure sets cooldown until tomorrow 0:00 for quota_exha
     // Clear any existing state
     clearModelLock(provider, connectionId, model);
 
-    const profile = {
-      baseCooldownMs: 125,
-      useUpstreamRetryHints: false,
-      maxBackoffSteps: 3,
-      failureThreshold: 60,
-      resetTimeoutMs: 5000,
-    };
+    const profile = makeProfile();
 
     // Calculate milliseconds until tomorrow 00:00 local time
     const tomorrow = new Date(now);
@@ -769,13 +745,11 @@ test("recordModelLockoutFailure uses regular backoff for non-quota reasons", () 
 
     clearModelLock(provider, connectionId, model);
 
-    const profile = {
+    const profile = makeProfile({
       baseCooldownMs: 5000,
-      useUpstreamRetryHints: false,
-      maxBackoffSteps: 3,
-      failureThreshold: 60,
-      resetTimeoutMs: 5000,
-    };
+      transientCooldown: 5000,
+      rateLimitCooldown: 5000,
+    });
 
     // Record failure with rate_limited reason (not quota_exhausted)
     const result = recordModelLockoutFailure(
