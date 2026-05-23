@@ -628,7 +628,7 @@ export function mapRawModelToModelV2(
  * Raw shape of a single combo entry as returned by OmniRoute's `/api/combos`.
  *
  * Schema established via a live probe against
- * `https://or4269-preprod.mrmm.xyz/api/combos` with a management-scoped key
+ * an OmniRoute `/api/combos` endpoint with a management-scoped key
  * (response saved at /tmp/t05-combos.json) cross-referenced against the
  * source-of-truth in this repo:
  *
@@ -1098,21 +1098,45 @@ export const defaultOmniRouteEnrichmentFetcher: OmniRouteEnrichmentFetcher = asy
  */
 export const PROVIDER_TAG_SEPARATOR = " - ";
 
-/** Threshold beyond which `providerDisplayName` is abbreviated to UPPER(alias). */
-const PROVIDER_LABEL_MAX_CHARS = 8;
+/**
+ * Threshold beyond which `providerDisplayName` is abbreviated. Raised
+ * from 8 → 12 so curated brand casing (`AssemblyAI`, `Antigravity`,
+ * `Pollinations`, `GEMINI-CLI` curated form) wins over a shouty
+ * UPPER(alias) fallback for the common case.
+ */
+const PROVIDER_LABEL_MAX_CHARS = 12;
+
+/**
+ * Aliases longer than this get title-case fallback instead of UPPER —
+ * keeps short-token UPPER (`cc`→`CC`, `ghm`→`GHM`) but tames long
+ * lowercase aliases (`antigravity`→`Antigravity`).
+ */
+const ALIAS_UPPER_MAX_CHARS = 5;
+
+/**
+ * Title-case a long, lowercase-looking alias (e.g. `antigravity` →
+ * `Antigravity`) so the prefix doesn't shout when neither
+ * `providerDisplayName` nor a short alias is available.
+ */
+function titleCaseAlias(alias: string): string {
+  if (alias.length === 0) return alias;
+  return alias.charAt(0).toUpperCase() + alias.slice(1).toLowerCase();
+}
 
 /**
  * Pick the short label for an upstream provider that goes into the
- * `<label> · <model>` prefix.
+ * `<label> - <model>` prefix.
  *
  * Rule (matches user spec — no hardcoded registry, fully data-driven):
  *
  *   1. Trim `enrichment.providerDisplayName` (= `/api/pricing/models[<alias>].name`).
- *   2. If the trimmed label is non-empty AND ≤ {@link PROVIDER_LABEL_MAX_CHARS},
- *      use it verbatim (e.g. `Claude`, `Kiro`, `Codex`, `Qwen`).
- *   3. Otherwise fall back to `UPPER(enrichment.providerAlias)` so long
- *      slot.names (`GitHub Models`, `Gemini-cli`) compress to `GHM`,
- *      `GEMINI-CLI`.
+ *   2. If the trimmed label is non-empty AND ≤ {@link PROVIDER_LABEL_MAX_CHARS} (12),
+ *      use it verbatim (e.g. `Claude`, `Kiro`, `AssemblyAI`, `Antigravity`).
+ *   3. Otherwise look at the alias:
+ *      - if the alias is short (≤ {@link ALIAS_UPPER_MAX_CHARS}) →
+ *        `UPPER(alias)` (e.g. `cc` → `CC`, `ghm` → `GHM`).
+ *      - if the alias is longer → title-case it (`antigravity` →
+ *        `Antigravity`) so the prefix is readable, not shouty.
  *   4. If neither field is usable, return `undefined` (caller should
  *      skip the prefix decoration).
  */
@@ -1124,7 +1148,9 @@ export function shortProviderLabel(
     typeof enrichment.providerDisplayName === "string" ? enrichment.providerDisplayName.trim() : "";
   if (raw.length > 0 && raw.length <= PROVIDER_LABEL_MAX_CHARS) return raw;
   const alias = typeof enrichment.providerAlias === "string" ? enrichment.providerAlias.trim() : "";
-  if (alias.length > 0) return alias.toUpperCase();
+  if (alias.length > 0) {
+    return alias.length <= ALIAS_UPPER_MAX_CHARS ? alias.toUpperCase() : titleCaseAlias(alias);
+  }
   // Tolerate "label too long + no alias" by falling back to the long
   // label itself — better than dropping the prefix entirely. Rare case.
   return raw.length > 0 ? raw : undefined;
@@ -1139,7 +1165,8 @@ export function shortProviderLabel(
  *   `<label>${PROVIDER_TAG_SEPARATOR}<enriched name>`
  *   → `Claude - Claude Opus 4.7`
  *   → `Kiro - Claude Opus 4.7`
- *   → `GHM - GPT 5`           (slot.name "GitHub Models" > 8 chars → UPPER(alias))
+ *   → `AssemblyAI - Universal 2 (Transcription)` (slot.name fits, used verbatim)
+ *   → `GHM - GPT 5`           (slot.name "GitHub Models" > 12 chars → UPPER(alias))
  *
  * Mutates the model in place and is idempotent — running twice never
  * double-prefixes. No-op when:
@@ -1164,6 +1191,213 @@ export function applyProviderTag(
   if (model.name.startsWith(prefix)) return model;
   model.name = `${prefix}${model.name}`;
   return model;
+}
+
+/**
+ * Reverse-index the enrichment map from `providerCanonical → providerAlias`.
+ *
+ * OmniRoute's `/api/pricing/models` is keyed by short ALIAS (`cc`, `cx`,
+ * `pol`). But `/v1/models` exposes some models a SECOND time under their
+ * CANONICAL name (`claude/claude-opus-4-7`, `codex/gpt-5.5`,
+ * `pollinations/midjourney`). Without a reverse map, those canonical
+ * rows miss enrichment entirely and surface as raw ids in the picker.
+ *
+ * Built once per refresh from the enrichment entries themselves — no
+ * hardcoded registry. Only records `canonical → alias` mappings when
+ * both are present AND distinct (skips slots where alias === canonical
+ * like `kiro`).
+ */
+export function buildCanonicalToAliasMap(
+  enrichment: OmniRouteEnrichmentMap | undefined
+): Map<string, string> {
+  const out = new Map<string, string>();
+  if (!enrichment) return out;
+  for (const entry of enrichment.values()) {
+    const alias = typeof entry.providerAlias === "string" ? entry.providerAlias.trim() : "";
+    const canonical =
+      typeof entry.providerCanonical === "string" ? entry.providerCanonical.trim() : "";
+    if (alias.length === 0 || canonical.length === 0) continue;
+    if (alias === canonical) continue;
+    if (!out.has(canonical)) out.set(canonical, alias);
+  }
+  return out;
+}
+
+/**
+ * Enrichment lookup with alias-fallback chain.
+ *
+ * Resolution order (first hit wins):
+ *
+ *   1. `enrichment.get(rawId)` — direct hit on `<prefix>/<modelId>` or
+ *      bare id (the fetcher writes under both forms).
+ *   2. If `rawId` is `<canonical>/<modelId>` and `canonicalToAlias` has
+ *      a mapping for `canonical`, try `<alias>/<modelId>`. This rescues
+ *      duplicate rows like `claude/claude-opus-4-7` (canonical) when
+ *      enrichment only indexed under `cc/claude-opus-4-7` (alias).
+ *   3. Bare `<modelId>` as a last resort. Already covered by step 1 in
+ *      practice (fetcher writes bare keys), but kept defensive.
+ *
+ * Returns `undefined` when no lookup hits.
+ */
+export function lookupEnrichment(
+  rawId: string,
+  enrichment: OmniRouteEnrichmentMap | undefined,
+  canonicalToAlias: Map<string, string>
+): OmniRouteEnrichmentEntry | undefined {
+  if (!enrichment) return undefined;
+  const direct = enrichment.get(rawId);
+  if (direct) return direct;
+  const slash = rawId.indexOf("/");
+  if (slash > 0) {
+    const prefix = rawId.slice(0, slash);
+    const modelId = rawId.slice(slash + 1);
+    const alias = canonicalToAlias.get(prefix);
+    if (alias && alias !== prefix) {
+      const viaAlias = enrichment.get(`${alias}/${modelId}`);
+      if (viaAlias) return viaAlias;
+    }
+    const bare = enrichment.get(modelId);
+    if (bare) return bare;
+  }
+  return undefined;
+}
+
+/**
+ * Pre-pass: detect raw rows that are the CANONICAL twin of an ALIAS row
+ * already in the catalog. Returns the set of canonical-keyed ids to skip
+ * during the raw-model loop so each model surfaces exactly once under
+ * its enriched alias key.
+ *
+ * Example: `/v1/models` returns BOTH `cc/claude-opus-4-7` and
+ * `claude/claude-opus-4-7`. The former is enriched (alias `cc` exists
+ * in `/api/pricing/models`); the latter is raw. We keep `cc/...` and
+ * drop `claude/...`.
+ *
+ * Built once per refresh. Cheap — O(M) where M = raw model count.
+ */
+export function canonicalDedupSet(
+  rawModels: ReadonlyArray<OmniRouteRawModelEntry>,
+  canonicalToAlias: Map<string, string>
+): Set<string> {
+  const drop = new Set<string>();
+  if (canonicalToAlias.size === 0) return drop;
+  // Index every alias key present in the raw catalog.
+  const aliasKeys = new Set<string>();
+  for (const m of rawModels) {
+    if (typeof m.id === "string" && m.id.length > 0) aliasKeys.add(m.id);
+  }
+  for (const m of rawModels) {
+    if (typeof m.id !== "string" || m.id.length === 0) continue;
+    const slash = m.id.indexOf("/");
+    if (slash <= 0) continue;
+    const prefix = m.id.slice(0, slash);
+    const modelId = m.id.slice(slash + 1);
+    const alias = canonicalToAlias.get(prefix);
+    if (!alias || alias === prefix) continue;
+    // Canonical row only gets suppressed if the alias row actually
+    // exists — otherwise we'd hide the model entirely.
+    if (aliasKeys.has(`${alias}/${modelId}`)) drop.add(m.id);
+  }
+  return drop;
+}
+
+/**
+ * Build a per-alias index of enrichment metadata so we can render the
+ * provider prefix even for raw models that don't have their own
+ * curated `/api/pricing/models` entry.
+ *
+ * Real example: OmniRoute's `pricing['cohere']` slot lists 10 curated
+ * models but `/v1/models` also returns `cohere/rerank-multilingual-v3.0`
+ * and `cohere/rerank-v4.0-fast` (not in the curated 10). Without this
+ * index, those rows surface in the picker as `cohere/...` with no
+ * `Cohere - ` prefix because the per-model enrichment lookup misses.
+ *
+ * This index records the first non-empty `providerDisplayName` seen
+ * for each alias, plus the alias itself. Callers use it to synthesize
+ * a minimal `OmniRouteEnrichmentEntry` whenever the direct lookup
+ * misses but the raw id's prefix matches a known alias.
+ *
+ * Built once per refresh; first-wins on duplicate alias (matches
+ * `buildCanonicalToAliasMap` semantics).
+ */
+export function buildAliasIndex(
+  enrichment: OmniRouteEnrichmentMap | undefined
+): Map<string, OmniRouteEnrichmentEntry> {
+  const out = new Map<string, OmniRouteEnrichmentEntry>();
+  if (!enrichment) return out;
+  for (const entry of enrichment.values()) {
+    const alias = typeof entry.providerAlias === "string" ? entry.providerAlias.trim() : "";
+    if (alias.length === 0) continue;
+    if (out.has(alias)) {
+      // First-wins, but upgrade to the first entry that carries a
+      // non-empty providerDisplayName so the prefix renders nicely.
+      const existing = out.get(alias);
+      if (
+        existing &&
+        (!existing.providerDisplayName || existing.providerDisplayName.trim().length === 0) &&
+        typeof entry.providerDisplayName === "string" &&
+        entry.providerDisplayName.trim().length > 0
+      ) {
+        out.set(alias, entry);
+      }
+      continue;
+    }
+    out.set(alias, entry);
+  }
+  return out;
+}
+
+/**
+ * Resolve a synthesised enrichment entry for `applyProviderTag` /
+ * `shortProviderLabel` consumption, combining two sources:
+ *
+ *  1. The direct per-model enrichment match (if present).
+ *  2. A per-alias fallback derived from `buildAliasIndex` — covers raw
+ *     ids whose prefix matches a known alias but the specific model
+ *     id wasn't curated in `/api/pricing/models`. Example:
+ *     `cohere/rerank-multilingual-v3.0` falls back to the cohere slot's
+ *     `providerDisplayName='Cohere'` even though that specific id
+ *     isn't in the curated 10-model list.
+ *
+ * Returns `undefined` when neither source surfaces an alias.
+ *
+ * NOTE: this function is read-only over its inputs; it never mutates
+ * the underlying `direct` entry. When it falls back to the alias
+ * index, it constructs a fresh minimal entry exposing only the
+ * provider-prefix fields (`providerAlias`, `providerCanonical`,
+ * `providerDisplayName`). Other fields (name, pricing) are explicitly
+ * left undefined so `applyEnrichment` won't accidentally overwrite a
+ * model name with the alias-slot label.
+ */
+export function resolveProviderTagEntry(
+  rawId: string,
+  direct: OmniRouteEnrichmentEntry | undefined,
+  aliasIndex: Map<string, OmniRouteEnrichmentEntry>,
+  canonicalToAlias?: Map<string, string>
+): OmniRouteEnrichmentEntry | undefined {
+  if (direct) {
+    const alias = typeof direct.providerAlias === "string" ? direct.providerAlias.trim() : "";
+    const display =
+      typeof direct.providerDisplayName === "string" ? direct.providerDisplayName.trim() : "";
+    if (alias.length > 0 || display.length > 0) return direct;
+  }
+  const slash = rawId.indexOf("/");
+  if (slash <= 0) return direct;
+  const prefix = rawId.slice(0, slash);
+  // 1. Direct alias lookup (`cohere/...` → cohere slot keyed by alias=cohere).
+  let fromAlias = aliasIndex.get(prefix);
+  // 2. Canonical fallback (`pollinations/...` → look up via alias `pol`).
+  if (!fromAlias && canonicalToAlias) {
+    const alias = canonicalToAlias.get(prefix);
+    if (alias) fromAlias = aliasIndex.get(alias);
+  }
+  if (!fromAlias) return direct;
+  // Synthesize: borrow only the provider-prefix metadata.
+  return {
+    providerAlias: fromAlias.providerAlias,
+    providerCanonical: fromAlias.providerCanonical,
+    providerDisplayName: fromAlias.providerDisplayName,
+  };
 }
 
 /**
@@ -1878,26 +2112,46 @@ export function createOmniRouteProviderHook(
           ? usableProviderAliasSet(rawConnections, rawEnrichment)
           : undefined;
 
+      // Build the canonical→alias reverse map AND the canonical-dedup
+      // set once per refresh. Together they fix the dual-keyed
+      // `/v1/models` problem where the same model surfaces under BOTH
+      // `<alias>/<id>` (enriched) AND `<canonical>/<id>` (raw): we keep
+      // the alias key and skip the canonical twin entirely.
+      const canonicalToAlias = buildCanonicalToAliasMap(rawEnrichment);
+      const canonicalDedup = canonicalDedupSet(rawModels, canonicalToAlias);
+      const aliasIndex = buildAliasIndex(rawEnrichment);
+
       // Map raw models → ModelV2 keyed by id. When enrichment data is
       // present (features.enrichment, default on), overlay the nicer
-      // display name + pricing from /api/pricing/models. The enrichment
-      // map keys on both namespaced (`<provider>/<id>`) and bare ids so
-      // we just try the bare id first, then fall back.
+      // display name + pricing from /api/pricing/models via the
+      // alias-fallback lookup chain (covers canonical rows lacking
+      // direct pricing entries).
       const models: Record<string, ModelV2> = {};
       for (const entry of rawModels) {
         if (!entry.id) continue;
+        if (canonicalDedup.has(entry.id)) continue;
         if (usable && !isUsableRawModelId(entry.id, usable, rawEnrichment)) continue;
         const model = mapRawModelToModelV2(entry, {
           providerId: resolved.providerId,
           baseURL,
         });
-        const enrichEntry = rawEnrichment.get(entry.id);
+        const enrichEntry = lookupEnrichment(entry.id, rawEnrichment, canonicalToAlias);
         applyEnrichment(model, enrichEntry);
         // Prepend upstream provider label (e.g. `Claude - Claude Opus 4.7`)
         // so the picker groups same-model rows by upstream connection.
         // Idempotent + gated by `features.providerTag` (default-on).
-        // Combos skip this on purpose.
-        if (wantProviderTag) applyProviderTag(model, enrichEntry);
+        // Combos skip this on purpose. The alias-index fallback rescues
+        // raw rows like `cohere/rerank-multilingual-v3.0` whose specific
+        // model id isn't in `/api/pricing/models` but whose slot is.
+        if (wantProviderTag) {
+          const tagEntry = resolveProviderTagEntry(
+            entry.id,
+            enrichEntry,
+            aliasIndex,
+            canonicalToAlias
+          );
+          applyProviderTag(model, tagEntry);
+        }
         models[entry.id] = model;
       }
 
@@ -2400,9 +2654,38 @@ export function __resetGeminiStreamingWarning(): void {
  * resulting JSON must be diffable across OmniRoute deployments without
  * `undefined` noise.
  */
+/** Modalities accepted by OC's static catalog reader (see `@opencode-ai/sdk`). */
+export type OmniRouteModalityKind = "text" | "audio" | "image" | "video" | "pdf";
+
+const STATIC_MODALITY_VALUES: ReadonlySet<OmniRouteModalityKind> = new Set([
+  "text",
+  "audio",
+  "image",
+  "video",
+  "pdf",
+]);
+
+/** Normalise + filter raw modality list to the values OC accepts. Deduped. */
+function normaliseModalities(raw: unknown): OmniRouteModalityKind[] {
+  if (!Array.isArray(raw)) return [];
+  const out: OmniRouteModalityKind[] = [];
+  const seen = new Set<string>();
+  for (const v of raw) {
+    if (typeof v !== "string") continue;
+    const lower = v.toLowerCase() as OmniRouteModalityKind;
+    if (!STATIC_MODALITY_VALUES.has(lower)) continue;
+    if (seen.has(lower)) continue;
+    seen.add(lower);
+    out.push(lower);
+  }
+  return out;
+}
+
 export interface OmniRouteStaticModelEntry {
   /** Display label rendered in OC's model picker. Defaults to the model id. */
   name: string;
+  /** ISO date the model was released. Surfaces in OC's model card when present. */
+  release_date?: string;
   /** Model accepts image / file attachments. */
   attachment?: boolean;
   /** Model exposes a reasoning / extended-thinking surface. */
@@ -2411,11 +2694,37 @@ export interface OmniRouteStaticModelEntry {
   temperature?: boolean;
   /** Model supports function / tool calling. */
   tool_call?: boolean;
-  /** Context-window limits. */
+  /**
+   * Per-million-token cost. Maps from OmniRoute `/api/pricing` shape:
+   * `input`/`output` pass through; `cached` → `cache_read`;
+   * `cache_creation` → `cache_write`. Omitted when no pricing slot resolves.
+   */
+  cost?: {
+    input: number;
+    output: number;
+    cache_read?: number;
+    cache_write?: number;
+  };
+  /**
+   * Context-window limits. OC's static reader requires both `context` AND
+   * `output` when `limit` is present, so the field is only emitted when
+   * BOTH are known.
+   */
   limit?: {
     context: number;
-    input?: number;
-    output?: number;
+    output: number;
+  };
+  /**
+   * Modality lists the model accepts (input) and emits (output). Maps from
+   * OmniRoute's `input_modalities` / `output_modalities` on `/v1/models`.
+   * Emitted only when at least one modality is known — without this field
+   * OC's runtime catalog defaults `input.image: false` even when the model
+   * card has `attachment: true`, which blocks clipboard image paste in the
+   * TUI for vision-capable models.
+   */
+  modalities?: {
+    input: OmniRouteModalityKind[];
+    output: OmniRouteModalityKind[];
   };
 }
 
@@ -2522,6 +2831,14 @@ export function buildStaticProviderEntry(
     if (typeof name === "string" && name.length > 0) comboNames.add(name);
   }
 
+  // Build the canonical→alias reverse map AND the canonical-dedup set
+  // once per static-block construction. Same shape as the dynamic hook
+  // so both catalogs publish identical keys (no `claude/X` raw twin
+  // shadowing the enriched `cc/X` row).
+  const canonicalToAlias = buildCanonicalToAliasMap(enrichment);
+  const canonicalDedup = canonicalDedupSet(rawModels, canonicalToAlias);
+  const aliasIndex = buildAliasIndex(enrichment);
+
   // Raw model entries → stripped per-model shape.
   for (const raw of rawModels) {
     if (!raw.id) continue;
@@ -2529,22 +2846,35 @@ export function buildStaticProviderEntry(
     // `combo/<name>` namespace. We keep `codex-auto-review` and any other
     // future no-slash raw entry that doesn't have a matching combo.
     if (comboNames.has(raw.id)) continue;
+    // Skip canonical-named twins when the alias-keyed enriched row exists.
+    if (canonicalDedup.has(raw.id)) continue;
     if (usable && !isUsableRawModelId(raw.id, usable, enrichment)) continue;
     const caps = raw.capabilities ?? {};
     // Enrichment overlay: `/api/pricing/models` carries human display names
     // (e.g. "Claude Opus 4.7" for raw id "cc/claude-opus-4-7"). The OC TUI
     // model picker reads this `name` straight from the static block on
     // OC ≤1.15.5 where the dynamic provider hook never fires. Falls back
-    // to the raw id when no enrichment entry is found.
-    const enrichmentEntry = enrichment?.get(raw.id);
+    // to the raw id when no enrichment entry is found. The alias-fallback
+    // lookup rescues `<canonical>/<id>` rows whose enrichment indexed only
+    // under `<alias>/<id>`.
+    const enrichmentEntry = lookupEnrichment(raw.id, enrichment, canonicalToAlias);
     const enrichmentName = enrichmentEntry?.name;
     let displayName = enrichmentName && enrichmentName.length > 0 ? enrichmentName : raw.id;
     // Provider-tag PREFIX — `<label> - <name>` so the picker groups by
     // upstream provider when scanning a column of model names. Mirrors
     // `applyProviderTag` used in the dynamic hook. Idempotent: skip
-    // when the name already starts with the prefix.
+    // when the name already starts with the prefix. The alias-index
+    // fallback rescues raw rows like `cohere/rerank-multilingual-v3.0`
+    // whose specific model id isn't in `/api/pricing/models` but whose
+    // slot is.
     if (wantProviderTag) {
-      const label = shortProviderLabel(enrichmentEntry);
+      const tagEntry = resolveProviderTagEntry(
+        raw.id,
+        enrichmentEntry,
+        aliasIndex,
+        canonicalToAlias
+      );
+      const label = shortProviderLabel(tagEntry);
       if (label) {
         const prefix = `${label}${PROVIDER_TAG_SEPARATOR}`;
         if (!displayName.startsWith(prefix)) displayName = `${prefix}${displayName}`;
@@ -2567,28 +2897,50 @@ export function buildStaticProviderEntry(
       entry.tool_call = caps.tool_calling;
     }
 
-    const limit: OmniRouteStaticModelEntry["limit"] = {} as { context: number };
-    let hasLimit = false;
-    if (typeof raw.context_length === "number" && raw.context_length > 0) {
-      (limit as { context: number }).context = raw.context_length;
-      hasLimit = true;
+    // OC's SDK schema requires BOTH `context` and `output` when `limit` is
+    // present. We previously emitted `limit.input` too, but the SDK reader
+    // doesn't accept it — drop it. Only emit `limit` when both required
+    // values are known.
+    if (
+      typeof raw.context_length === "number" &&
+      raw.context_length > 0 &&
+      typeof raw.max_output_tokens === "number" &&
+      raw.max_output_tokens > 0
+    ) {
+      entry.limit = {
+        context: raw.context_length,
+        output: raw.max_output_tokens,
+      };
     }
-    if (typeof raw.max_input_tokens === "number" && raw.max_input_tokens > 0) {
-      (limit as { input?: number }).input = raw.max_input_tokens;
-      hasLimit = true;
+
+    // Modalities — emit when OmniRoute surfaced any. Without this field
+    // OC's runtime model defaults `input.image: false` even for vision-
+    // capable models, blocking clipboard image paste in the TUI.
+    const inModalities = normaliseModalities(raw.input_modalities);
+    const outModalities = normaliseModalities(raw.output_modalities);
+    if (inModalities.length > 0 || outModalities.length > 0) {
+      entry.modalities = {
+        input: inModalities.length > 0 ? inModalities : ["text"],
+        output: outModalities.length > 0 ? outModalities : ["text"],
+      };
     }
-    if (typeof raw.max_output_tokens === "number" && raw.max_output_tokens > 0) {
-      (limit as { output?: number }).output = raw.max_output_tokens;
-      hasLimit = true;
+
+    // Cost from enrichment pricing (sourced from `/api/pricing`). Map
+    // OmniRoute field names to OC's static-schema field names.
+    const pricing = enrichmentEntry?.pricing;
+    if (pricing && (typeof pricing.input === "number" || typeof pricing.output === "number")) {
+      const cost: NonNullable<OmniRouteStaticModelEntry["cost"]> = {
+        input: typeof pricing.input === "number" ? pricing.input : 0,
+        output: typeof pricing.output === "number" ? pricing.output : 0,
+      };
+      if (typeof pricing.cacheRead === "number") cost.cache_read = pricing.cacheRead;
+      if (typeof pricing.cacheWrite === "number") cost.cache_write = pricing.cacheWrite;
+      entry.cost = cost;
     }
-    if (hasLimit) {
-      // Static shape requires `context: number` when limit is present —
-      // fill with 0 when only input/output were declared (matches the
-      // sibling provider's behaviour for partial limits).
-      if (typeof (limit as { context?: number }).context !== "number") {
-        (limit as { context: number }).context = 0;
-      }
-      entry.limit = limit as OmniRouteStaticModelEntry["limit"];
+
+    // release_date from /v1/models — surfaces in OC's model card when present.
+    if (typeof raw.release_date === "string" && raw.release_date.length > 0) {
+      entry.release_date = raw.release_date;
     }
 
     models[raw.id] = entry;
@@ -2660,29 +3012,44 @@ export function buildStaticProviderEntry(
       );
       entry.tool_call = memberEntries.every((m) => Boolean(m.capabilities?.tool_calling ?? false));
 
-      // LCD across limits — min over declared values, omit `input` unless
-      // EVERY member declares one (matches mapComboToModelV2).
+      // LCD across limits — min over declared values. OC's SDK static schema
+      // accepts only `context` + `output` on `limit`, so we drop the legacy
+      // `input` emission. Emit only when BOTH context AND output are known
+      // across at least one member (mirrors the required-field constraint).
       const contextValues = memberEntries
         .map((m) => m.context_length)
         .filter((v): v is number => typeof v === "number" && v > 0);
       const outputValues = memberEntries
         .map((m) => m.max_output_tokens)
         .filter((v): v is number => typeof v === "number" && v > 0);
-      const inputValues = memberEntries
-        .map((m) => m.max_input_tokens)
-        .filter((v): v is number => typeof v === "number" && v > 0);
-      const everyDeclaresInput = inputValues.length === memberEntries.length;
 
-      if (contextValues.length > 0 || outputValues.length > 0 || everyDeclaresInput) {
-        const limit = {} as { context: number; input?: number; output?: number };
-        limit.context = contextValues.length > 0 ? Math.min(...contextValues) : 0;
-        if (everyDeclaresInput && inputValues.length > 0) {
-          limit.input = Math.min(...inputValues);
+      if (contextValues.length > 0 && outputValues.length > 0) {
+        entry.limit = {
+          context: Math.min(...contextValues),
+          output: Math.min(...outputValues),
+        };
+      }
+
+      // LCD across modalities — combo accepts modality M iff every member
+      // accepts M. Same intersection rule as runtime capabilities.
+      const inSets = memberEntries.map((m) => new Set(normaliseModalities(m.input_modalities)));
+      const outSets = memberEntries.map((m) => new Set(normaliseModalities(m.output_modalities)));
+      const intersect = (sets: Set<OmniRouteModalityKind>[]): OmniRouteModalityKind[] => {
+        if (sets.length === 0) return [];
+        const [first, ...rest] = sets;
+        const out: OmniRouteModalityKind[] = [];
+        for (const v of first) {
+          if (rest.every((s) => s.has(v))) out.push(v);
         }
-        if (outputValues.length > 0) {
-          limit.output = Math.min(...outputValues);
-        }
-        entry.limit = limit;
+        return out;
+      };
+      const inModalities = intersect(inSets);
+      const outModalities = intersect(outSets);
+      if (inModalities.length > 0 || outModalities.length > 0) {
+        entry.modalities = {
+          input: inModalities.length > 0 ? inModalities : ["text"],
+          output: outModalities.length > 0 ? outModalities : ["text"],
+        };
       }
     } else {
       // Empty members → safety posture: all caps false. Caller's OC picker
