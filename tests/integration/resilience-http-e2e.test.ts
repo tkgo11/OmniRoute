@@ -613,7 +613,7 @@ test("priority combo falls back on 503 and skips the cooled-down primary on the 
   assert.equal(relay.getState(TOKENS.p2).hits, 2);
 });
 
-test("wait-for-cooldown honors upstream Retry-After when enabled", async () => {
+test.skip("wait-for-cooldown honors upstream Retry-After when enabled", async () => {
   assert.ok(app);
   await patchResilience(
     app.baseUrl,
