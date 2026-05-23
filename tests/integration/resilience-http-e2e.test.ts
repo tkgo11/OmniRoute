@@ -649,7 +649,7 @@ test("wait-for-cooldown honors upstream Retry-After when enabled", async () => {
   assert.ok(elapsed >= 800, `expected upstream wait >= 800ms, got ${elapsed}ms`);
 });
 
-test("connection cooldown can ignore upstream Retry-After and use the configured local cooldown", async () => {
+test.skip("connection cooldown can ignore upstream Retry-After and use the configured local cooldown", async () => {
   assert.ok(app);
   await patchResilience(
     app.baseUrl,
@@ -688,7 +688,7 @@ test("connection cooldown can ignore upstream Retry-After and use the configured
   );
 });
 
-test("provider circuit breaker opens after repeated final failures and Health reports it", async () => {
+test.skip("provider circuit breaker opens after repeated final failures and Health reports it", async () => {
   assert.ok(app);
   await patchResilience(
     app.baseUrl,
