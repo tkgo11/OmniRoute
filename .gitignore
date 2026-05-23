@@ -166,6 +166,9 @@ scripts/i18n/_pending-keys.json
 # These contain proprietary multi-phase logic and should not be committed
 .agents/workflows/implement-features-ag.md
 .agents/workflows/port-upstream-features-ag.md
+.agents/workflows/port-upstream-issues-ag.md
 .agents/skills/implement-features/
 .claude/commands/implement-features-cc.md
+.claude/commands/port-upstream-features-cc.md
+.claude/commands/port-upstream-issues-cc.md
 .claude/worktrees/
