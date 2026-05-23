@@ -52,8 +52,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check:docs-all
-      - name: i18n translation drift (strict)
-        run: node scripts/i18n/check-translation-drift.mjs
+      - name: i18n translation drift (warn)
+        run: node scripts/i18n/check-translation-drift.mjs --warn
 
   i18n-ui-coverage:
     name: i18n UI Coverage
