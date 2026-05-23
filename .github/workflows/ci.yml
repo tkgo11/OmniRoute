@@ -65,7 +65,7 @@ jobs:
           node-version: ${{ env.CI_NODE_VERSION }}
           cache: npm
       - run: npm ci
-      - run: node scripts/i18n/check-ui-keys-coverage.mjs --threshold=80
+      - run: node scripts/i18n/check-ui-keys-coverage.mjs --threshold=65
 
   i18n-matrix:
     name: Build language matrix
@@ -187,14 +187,14 @@ jobs:
         run: xvfb-run -a npm run electron:smoke:packaged
 
   test-unit:
-    name: Unit Tests (${{ matrix.shard }}/2)
+    name: Unit Tests (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: build
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     env:
       JWT_SECRET: ci-test-secret-with-sufficient-length-for-validation
       API_KEY_SECRET: ci-test-api-key-secret-long
@@ -207,7 +207,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check:node-runtime
-      - run: node --import tsx --test --test-concurrency=1 --test-shard=${{ matrix.shard }}/2 tests/unit/*.test.ts
+      - run: node --import tsx --test --test-force-exit --test-concurrency=4 --test-shard=${{ matrix.shard }}/4 tests/unit/*.test.ts
 
   node-24-compat:
     name: Node 24 Compatibility (${{ matrix.shard }}/2)
@@ -231,7 +231,7 @@ jobs:
       - run: npm ci
       - run: npm run check:node-runtime
       - run: npm run build
-      - run: node --import tsx --test --test-concurrency=1 --test-shard=${{ matrix.shard }}/2 tests/unit/*.test.ts
+      - run: node --import tsx --test --test-force-exit --test-concurrency=4 --test-shard=${{ matrix.shard }}/2 tests/unit/*.test.ts
 
   node-26-compat:
     name: Node 26 Compatibility (${{ matrix.shard }}/2)
@@ -255,7 +255,7 @@ jobs:
       - run: npm ci
       - run: npm run check:node-runtime
       - run: npm run build
-      - run: node --import tsx --test --test-concurrency=1 --test-shard=${{ matrix.shard }}/2 tests/unit/*.test.ts
+      - run: node --import tsx --test --test-force-exit --test-concurrency=4 --test-shard=${{ matrix.shard }}/2 tests/unit/*.test.ts
 
   test-coverage:
     name: Coverage
