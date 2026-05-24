@@ -26,7 +26,7 @@ function rowToHookConfig(row: HookConfigRow): HookConfig {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     runCount: row.run_count,
-    lastError: row.last_error,
+    lastError: row.last_error || undefined,
   };
 }
 

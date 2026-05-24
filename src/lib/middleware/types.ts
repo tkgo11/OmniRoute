@@ -98,13 +98,13 @@ export interface HookConfigRow {
   description: string;
   priority: number;
   scope_type: "global" | "combo";
-  combo_id?: string;
+  combo_id?: string | null;
   enabled: number;
   code: string;
   created_at: string;
   updated_at: string;
   run_count: number;
-  last_error?: string;
+  last_error?: string | null;
 }
 
 /** API request body for creating/updating a hook */

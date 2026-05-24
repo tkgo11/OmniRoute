@@ -26,6 +26,15 @@
 - **feat(i18n):** finish Simplified Chinese (zh-CN) UI coverage with 377 translated entries. ([#2659](https://github.com/diegosouzapw/OmniRoute/pull/2659) — thanks @L-aros)
 - **feat(dashboard):** chat-first test slide-over layout — consolidates header controls (Model/Key selects, Clear button) into a unified toolbar, maximizes vertical conversation space, integrates live tailing of provider logs in Logs tab, and locks composer focus for keyboard-only convenience. ([#2660](https://github.com/diegosouzapw/OmniRoute/pull/2660) — thanks @mrmm)
 - **feat(cli):** desktop updates, autostart, and headless CLI modes — integrates native auto-updater checks, login autostart (Linux .desktop, macOS/Windows login items), and a background headless server CLI daemon mode (`--headless` or `OMNIROUTE_HEADLESS=true`) into the Electron app wrapper. ([#2662](https://github.com/diegosouzapw/OmniRoute/pull/2662) — thanks @benzntech)
+- **feat(quota):** card-grid layout and provider group headers under quota management — replaces monolithic table with a beautiful 4-column card grid in limits. ([#2667](https://github.com/diegosouzapw/OmniRoute/pull/2667) — thanks @Gi99lin)
+- **feat(dashboard):** real-time WebSocket live monitoring daemon — runs a Node.js WebSocket daemon sidecar on port `20129` to emit real-time events for request starts/completes/fails, combo attempts, and credential status in the dashboard logs. ([#2668](https://github.com/diegosouzapw/OmniRoute/pull/2668) — thanks @herjarsa)
+- **feat(copilot):** AI assistant with CodeGraph + CLI + knowledge base — integrates a dashboard assistant with CodeGraph knowledge base access and CLI capabilities for app exploration. ([#2669](https://github.com/diegosouzapw/OmniRoute/pull/2669) — thanks @ovehbe / @herjarsa)
+- **feat(pipeline):** pre-request middleware hooks — pipeline executing custom JS hooks before routing/combo logic to mutate headers/body or short-circuit requests. ([#2670](https://github.com/diegosouzapw/OmniRoute/pull/2670) — thanks @herjarsa)
+- **feat(resilience):** credential health check + adaptive circuit breaker v2 — background connection health check scheduler with progressive circuit breaker adding DEGRADED state and HALF-OPEN recovery validation to avoid latency spikes. ([#2671](https://github.com/diegosouzapw/OmniRoute/pull/2671) — thanks @herjarsa)
+- **feat(playground):** combo routing visual simulator — interactive route simulation page at `/dashboard/combos/playground` to showcase cascade hops, latency, and cost estimates. ([#2672](https://github.com/diegosouzapw/OmniRoute/pull/2672) — thanks @herjarsa)
+- **feat(auth):** API key groups with model-level permissions — group definitions with model-level wildcards/denies where API keys inherit group-scoped restrictions. ([#2673](https://github.com/diegosouzapw/OmniRoute/pull/2673) — thanks @herjarsa)
+- **feat(pwa):** enhanced manifest + push notification support — polishes offline shortcuts, screenshots, display metadata, and push service workers. ([#2674](https://github.com/diegosouzapw/OmniRoute/pull/2674) — thanks @herjarsa)
+- **feat(proxy):** serverless relay proxy endpoints with rate limiting — public relay proxy endpoints with cost caps and rate limits, CRUD API, and dashboard usage tracking. ([#2675](https://github.com/diegosouzapw/OmniRoute/pull/2675) — thanks @herjarsa)
 
 ### 🔧 Bug Fixes
 
@@ -49,6 +58,7 @@
 - **fix(combo):** resolve pending request leaks on unresponsive combo targets — implements a default 60-second per-target timeout during combo routing loops to abort hanging upstream requests and release capacity limits. ([#2663](https://github.com/diegosouzapw/OmniRoute/pull/2663) — thanks @Chewji9875)
 - **fix(proxy):** save custom dashboard proxies directly in SQLite registry — writes new provider/account/global/combo custom proxies directly to the modern `proxy_registry` database and assigns them via `proxy_assignments` instead of creating duplicate configurations. ([#2661](https://github.com/diegosouzapw/OmniRoute/pull/2661) — thanks @terence71-glitch)
 - **fix(settings):** expand effortLevel enum to support xhigh and max reasoning efforts — adds `xhigh` and `max` levels to the updateThinkingBudgetSchema to resolve validation failures that silently discarded top-effort request payloads. ([#2666](https://github.com/diegosouzapw/OmniRoute/pull/2666) — thanks @mrmm)
+- **fix(codex):** Codex OAuth refresh token reuse race condition under parallel requests. ([#2667](https://github.com/diegosouzapw/OmniRoute/pull/2667) — thanks @diegosouzapw)
 
 ### 📝 Maintenance
 

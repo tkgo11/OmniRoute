@@ -1,5 +1,6 @@
 import {
   cleanupExpiredHandoffs,
+  getHandoff,
   hasActiveHandoff,
   type HandoffPayload,
   upsertHandoff,
