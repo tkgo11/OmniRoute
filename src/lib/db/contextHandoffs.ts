@@ -202,10 +202,7 @@ export function recordSessionModelUsage(
  * @param comboName - The combo name.
  * @returns The model string, or null if no record exists.
  */
-export function getLastSessionModel(
-  sessionId: string,
-  comboName: string,
-): string | null {
+export function getLastSessionModel(sessionId: string, comboName: string): string | null {
   const db = getDbInstance() as unknown as DbLike;
   const row = db
     .prepare(

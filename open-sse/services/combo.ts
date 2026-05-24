@@ -37,6 +37,8 @@ import { getCircuitBreaker } from "../../src/shared/utils/circuitBreaker";
 import { fisherYatesShuffle, getNextFromDeck } from "../../src/shared/utils/shuffleDeck";
 import { parseModel } from "./model.ts";
 import { applyComboAgentMiddleware, injectModelTag } from "./comboAgentMiddleware.ts";
+import { checkCredentialGate, logCredentialSkip } from "./credentialGate.ts";
+import { emit } from "../../src/lib/events/eventBus";
 import { classifyWithConfig, DEFAULT_INTENT_CONFIG } from "./intentClassifier.ts";
 import { selectProvider as selectAutoProvider } from "./autoCombo/engine.ts";
 import { selectWithStrategy } from "./autoCombo/routerStrategy.ts";
@@ -2074,6 +2076,17 @@ export async function handleComboChat({
         }
       }
 
+      // Credential gate: skip targets with known-bad credentials (fail-fast)
+      const connectionId = target.connectionId as string | undefined;
+      if (connectionId) {
+        const gateResult = checkCredentialGate(connectionId, provider, modelStr);
+        if (gateResult.allowed === false) {
+          logCredentialSkip(log, modelStr, gateResult.reason || "Credential gate blocked");
+          if (i > 0) fallbackCount++;
+          continue;
+        }
+      }
+
       // Retry loop for transient errors
       for (let retry = 0; retry <= maxRetries; retry++) {
         // Fix #1681: Bail out immediately if the client has disconnected
@@ -2115,6 +2128,14 @@ export async function handleComboChat({
           "COMBO",
           `Trying model ${i + 1}/${orderedTargets.length}: ${modelStr}${retry > 0 ? ` (retry ${retry})` : ""}`
         );
+        emit("combo.target.attempt", {
+          comboName: combo.name,
+          targetIndex: i,
+          provider,
+          model: modelStr,
+          timestamp: Date.now(),
+          strategy,
+        });
 
         // Universal handoff: inject existing handoff if model changed
         if (
@@ -2161,8 +2182,23 @@ export async function handleComboChat({
             if (!lastStatus) lastStatus = 502;
             if (i > 0) fallbackCount++;
             break; // move to next model
+            emit("combo.target.failed", {
+              comboName: combo.name,
+              targetIndex: i,
+              provider,
+              model: modelStr,
+              error: `Quality: ${quality.reason}`,
+              latencyMs: Date.now() - startTime,
+            });
           }
           const latencyMs = Date.now() - startTime;
+          emit("combo.target.succeeded", {
+            comboName: combo.name,
+            targetIndex: i,
+            provider,
+            model: modelStr,
+            latencyMs,
+          });
           log.info(
             "COMBO",
             `Model ${modelStr} succeeded (${latencyMs}ms, ${fallbackCount} fallbacks)`

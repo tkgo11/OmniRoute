@@ -38,10 +38,7 @@ test("applies global-level config when combo not set", () => {
 });
 
 test("gives combo priority over global", () => {
-  const r = resolveUniversalHandoffConfig(
-    { enabled: true } as any,
-    { enabled: false } as any
-  );
+  const r = resolveUniversalHandoffConfig({ enabled: true } as any, { enabled: false } as any);
   assert.strictEqual(r.enabled, true);
 });
 
@@ -130,11 +127,13 @@ test("buildUniversalHandoffSystemMessage full XML with valid payload", () => {
 
 test("buildUniversalHandoffSystemMessage escapes XML special chars", () => {
   const msg = buildUniversalHandoffSystemMessage(
-    'm<a>', 'm<b>', 'r "t" & x',
+    "m<a>",
+    "m<b>",
+    'r "t" & x',
     makePayload({
       summary: '<s> & "q"',
       keyDecisions: ['d & "<>"'],
-      activeEntities: ['e<test>'],
+      activeEntities: ["e<test>"],
     })
   );
   assert.ok(msg.includes("m&lt;a&gt;"));
