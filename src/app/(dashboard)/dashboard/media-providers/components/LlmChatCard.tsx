@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useImperativeHandle,
+  type RefObject,
+} from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/shared/utils/cn";
 import { useApiKey } from "../../providers/hooks/useApiKey";
@@ -20,10 +27,23 @@ interface Stats {
   latencyMs: number;
 }
 
+export interface LlmChatControls {
+  clear: () => void;
+  hasMessages: boolean;
+  streaming: boolean;
+}
+
 interface Props {
   providerId: string;
   initialModel?: string;
   embedded?: boolean;
+  hideToolbar?: boolean;
+  model?: string;
+  onModelChange?: (model: string) => void;
+  selectedKey?: string;
+  onSelectedKeyChange?: (key: string) => void;
+  controlsRef?: RefObject<LlmChatControls | null>;
+  onControlsChange?: (controls: LlmChatControls) => void;
 }
 
 function extractDeltaContent(line: string): string {
@@ -60,22 +80,63 @@ function extractUsage(line: string): { prompt_tokens?: number; completion_tokens
   }
 }
 
-export function LlmChatCard({ providerId, initialModel, embedded = false }: Props) {
+export function LlmChatCard({
+  providerId,
+  initialModel,
+  embedded = false,
+  hideToolbar = false,
+  model: modelProp,
+  onModelChange,
+  selectedKey: selectedKeyProp,
+  onSelectedKeyChange,
+  controlsRef,
+  onControlsChange,
+}: Props) {
   const t = useTranslations("miniPlayground");
   const { apiKey, keys } = useApiKey();
   const { models } = useProviderModels(providerId);
 
-  const [selectedKey, setSelectedKey] = useState<string>("");
-  const [model, setModel] = useState<string>(initialModel ?? "");
+  const [internalSelectedKey, setInternalSelectedKey] = useState<string>("");
+  const [internalModel, setInternalModel] = useState<string>(initialModel ?? "");
+  const selectedKey = selectedKeyProp ?? internalSelectedKey;
+  const setSelectedKey = useCallback(
+    (k: string) => {
+      if (onSelectedKeyChange) onSelectedKeyChange(k);
+      else setInternalSelectedKey(k);
+    },
+    [onSelectedKeyChange]
+  );
+  const model = modelProp ?? internalModel;
+  const setModel = useCallback(
+    (m: string) => {
+      if (onModelChange) onModelChange(m);
+      else setInternalModel(m);
+    },
+    [onModelChange]
+  );
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
   const [streaming, setStreaming] = useState<boolean>(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const firstModel = models[0]?.id ?? "";
   const effectiveModel = model || firstModel || initialModel || "";
+  // Auto-prefix model with providerId when no provider/model prefix present, to avoid
+  // OmniRoute "Ambiguous model" rejection when same alias is registered under multiple providers.
+  const qualifiedModel = effectiveModel.includes("/")
+    ? effectiveModel
+    : providerId
+      ? `${providerId}/${effectiveModel}`
+      : effectiveModel;
+
+  // Autofocus textarea in embedded mode
+  useEffect(() => {
+    if (embedded) textareaRef.current?.focus();
+  }, [embedded]);
 
   // Auto-scroll to bottom when messages update
   useEffect(() => {
@@ -95,7 +156,7 @@ export function LlmChatCard({ providerId, initialModel, embedded = false }: Prop
     if (!trimmed || streaming) return;
 
     const userMsg: Message = { role: "user", content: trimmed };
-    const assistantMsg: Message = { role: "assistant", content: "", model: effectiveModel };
+    const assistantMsg: Message = { role: "assistant", content: "", model: qualifiedModel };
     setMessages((prev) => [...prev, userMsg, assistantMsg]);
     setInput("");
     setStreaming(true);
@@ -117,7 +178,7 @@ export function LlmChatCard({ providerId, initialModel, embedded = false }: Prop
           "x-connection-id": providerId,
         },
         body: JSON.stringify({
-          model: effectiveModel,
+          model: qualifiedModel,
           messages: [
             // Include history (all except the last assistant placeholder)
             ...messages,
@@ -217,8 +278,10 @@ export function LlmChatCard({ providerId, initialModel, embedded = false }: Prop
     } finally {
       setStreaming(false);
       abortRef.current = null;
+      // Refocus textarea so user can keep typing
+      requestAnimationFrame(() => textareaRef.current?.focus());
     }
-  }, [input, streaming, selectedKey, apiKey, providerId, effectiveModel, messages]);
+  }, [input, streaming, selectedKey, apiKey, providerId, qualifiedModel, messages]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -231,11 +294,30 @@ export function LlmChatCard({ providerId, initialModel, embedded = false }: Prop
     abortRef.current?.abort();
   };
 
-  const handleClear = () => {
-    if (streaming) handleStop();
+  const handleClear = useCallback(() => {
+    if (streaming) abortRef.current?.abort();
     setMessages([]);
     setStats(null);
-  };
+  }, [streaming]);
+
+  useImperativeHandle(
+    controlsRef,
+    () => ({
+      clear: handleClear,
+      hasMessages: messages.length > 0,
+      streaming,
+    }),
+    [handleClear, messages.length, streaming]
+  );
+
+  // Notify parent of control state changes (for external toolbar)
+  useEffect(() => {
+    onControlsChange?.({
+      clear: handleClear,
+      hasMessages: messages.length > 0,
+      streaming,
+    });
+  }, [onControlsChange, handleClear, messages.length, streaming]);
 
   const modelOptions = models.length > 0 ? models : initialModel ? [{ id: initialModel }] : [];
 
@@ -246,53 +328,55 @@ export function LlmChatCard({ providerId, initialModel, embedded = false }: Prop
         embedded ? "flex-1 min-h-0" : "rounded-lg border border-border bg-bg-card p-4"
       )}
     >
-      {/* Header controls */}
-      <div className="flex flex-wrap items-center gap-2">
-        {/* Model select */}
-        <div className="flex items-center gap-1.5 min-w-0 flex-1">
-          <label className="text-xs text-text-muted shrink-0">{t("model")}:</label>
-          <select
-            value={model || firstModel}
-            onChange={(e) => setModel(e.target.value)}
-            className="min-w-0 flex-1 rounded-md border border-border bg-bg-subtle text-xs px-2 py-1 text-text-main focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            {modelOptions.length === 0 && <option value="">{initialModel || "—"}</option>}
-            {modelOptions.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.id}
-              </option>
-            ))}
-          </select>
-        </div>
-        {/* Key select */}
-        {keys.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <label className="text-xs text-text-muted shrink-0">{t("selectKey")}:</label>
+      {/* Header controls (hidden when parent renders its own toolbar) */}
+      {!hideToolbar && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Model select */}
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <label className="text-xs text-text-muted shrink-0">{t("model")}:</label>
             <select
-              value={selectedKey}
-              onChange={(e) => setSelectedKey(e.target.value)}
-              className="rounded-md border border-border bg-bg-subtle text-xs px-2 py-1 text-text-main focus:outline-none focus:ring-1 focus:ring-primary"
+              value={model || firstModel}
+              onChange={(e) => setModel(e.target.value)}
+              className="min-w-0 flex-1 rounded-md border border-border bg-bg-subtle text-xs px-2 py-1 text-text-main focus:outline-none focus:ring-1 focus:ring-primary"
             >
-              <option value="">(default)</option>
-              {keys.map((k) => (
-                <option key={k.id} value={k.key}>
-                  {k.name ?? k.id}
+              {modelOptions.length === 0 && <option value="">{initialModel || "—"}</option>}
+              {modelOptions.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.id}
                 </option>
               ))}
             </select>
           </div>
-        )}
-        {/* Clear button */}
-        {messages.length > 0 && (
-          <button
-            type="button"
-            onClick={handleClear}
-            className="text-xs text-text-muted hover:text-text-primary transition-colors"
-          >
-            Clear
-          </button>
-        )}
-      </div>
+          {/* Key select */}
+          {keys.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs text-text-muted shrink-0">{t("selectKey")}:</label>
+              <select
+                value={selectedKey}
+                onChange={(e) => setSelectedKey(e.target.value)}
+                className="rounded-md border border-border bg-bg-subtle text-xs px-2 py-1 text-text-main focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                <option value="">(default)</option>
+                {keys.map((k) => (
+                  <option key={k.id} value={k.key}>
+                    {k.name ?? k.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          {/* Clear button */}
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="text-xs text-text-muted hover:text-text-primary transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div
@@ -385,13 +469,13 @@ export function LlmChatCard({ providerId, initialModel, embedded = false }: Prop
       {/* Input row */}
       <div className="relative flex items-end gap-2 rounded-lg border border-border bg-bg-subtle px-3 py-2 focus-within:ring-1 focus-within:ring-primary focus-within:border-primary/50 transition-colors">
         <textarea
+          ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
           placeholder={`${t("send")}…`}
-          disabled={streaming}
-          className="flex-1 bg-transparent text-sm py-1.5 text-text-main placeholder:text-text-muted focus:outline-none resize-none disabled:opacity-50 max-h-32"
+          className="flex-1 bg-transparent text-sm py-1.5 text-text-main placeholder:text-text-muted focus:outline-none resize-none max-h-32"
         />
         {streaming ? (
           <button
