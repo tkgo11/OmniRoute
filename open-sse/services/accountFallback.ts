@@ -663,9 +663,9 @@ function configureProviderBreaker(
           classifyError: classify429FromError,
         }
       : {}),
-      degradationThreshold: resolvedProfile.degradationThreshold,
-      maxBackoffMultiplier: resolvedProfile.maxBackoffMultiplier,
-      backoffEscalationCount: resolvedProfile.backoffEscalationCount,
+    degradationThreshold: resolvedProfile.degradationThreshold,
+    maxBackoffMultiplier: resolvedProfile.maxBackoffMultiplier,
+    backoffEscalationCount: resolvedProfile.backoffEscalationCount,
   });
 }
 
