@@ -132,7 +132,11 @@ const INTENT_PATTERNS: Array<{
   extractArgs: (match: RegExpMatchArray) => Record<string, unknown>;
 }> = [
   // ── Provider tools ──
-  { pattern: /list.*(?:providers?|connections?|accounts)/i, tool: "listProviders", extractArgs: () => ({}) },
+  {
+    pattern: /list.*(?:providers?|connections?|accounts)/i,
+    tool: "listProviders",
+    extractArgs: () => ({}),
+  },
   {
     pattern: /list.*(oauth|api.?key|free|local).*provider/i,
     tool: "listProviders",
@@ -168,30 +172,38 @@ const INTENT_PATTERNS: Array<{
   // ── CodeGraph tools ──
   // Search symbols
   {
-    pattern: /(?:busca|search|find|dónde está|where is)\s*(?:el\s*)?(?:símbolo|symbol|function|función|class|clase)?\s*[`"']?([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)[`"']?/i,
+    pattern:
+      /(?:busca|search|find|dónde está|where is)\s*(?:el\s*)?(?:símbolo|symbol|function|función|class|clase)?\s*[`"']?([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)[`"']?/i,
     tool: "searchCodeGraph",
     extractArgs: (m) => ({ query: m[1] }),
   },
   // Callers
   {
-    pattern: /(?:qui[ée]n|who|what)\s*(?:llama|call|usa|use|referenc).*[`"']?([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)[`"']?/i,
+    pattern:
+      /(?:qui[ée]n|who|what)\s*(?:llama|call|usa|use|referenc).*[`"']?([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)[`"']?/i,
     tool: "findCallers",
     extractArgs: (m) => ({ symbol: m[1] }),
   },
   // Callees
   {
-    pattern: /(?:qué|what|que)\s*(?:llama|call|usa)\s*[`"']?([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)[`"']?/i,
+    pattern:
+      /(?:qué|what|que)\s*(?:llama|call|usa)\s*[`"']?([a-zA-Z_]\w*(?:\.[a-zA-Z_]\w*)*)[`"']?/i,
     tool: "findCallees",
     extractArgs: (m) => ({ symbol: m[1] }),
   },
   // File context
   {
-    pattern: /(?:contexto|context|símbolos|symbols|funciones|functions)\s*(?:de|in|del|en)\s*[`"']?([a-zA-Z0-9_/.-]+(?:\.\w+)?)[`"']?/i,
+    pattern:
+      /(?:contexto|context|símbolos|symbols|funciones|functions)\s*(?:de|in|del|en)\s*[`"']?([a-zA-Z0-9_/.-]+(?:\.\w+)?)[`"']?/i,
     tool: "getFileContext",
     extractArgs: (m) => ({ filePath: m[1] }),
   },
   // Files
-  { pattern: /list.*(?:archivos|files|index)/i, tool: "listCodeGraphFiles", extractArgs: () => ({}) },
+  {
+    pattern: /list.*(?:archivos|files|index)/i,
+    tool: "listCodeGraphFiles",
+    extractArgs: () => ({}),
+  },
   { pattern: /codegraph.*(?:stats|stat|status)/i, tool: "codeGraphStats", extractArgs: () => ({}) },
 
   // ── CLI executor ──
@@ -202,10 +214,18 @@ const INTENT_PATTERNS: Array<{
   },
 
   // ── Health / status ──
-  { pattern: /^(?:health|status|salud|estado)$/i, tool: "runOmniRouteCli", extractArgs: () => ({ command: "health" }) },
+  {
+    pattern: /^(?:health|status|salud|estado)$/i,
+    tool: "runOmniRouteCli",
+    extractArgs: () => ({ command: "health" }),
+  },
 
   // ── Help ──
-  { pattern: /^(?:help|ayuda|que puedes hacer|qué puedes hacer|\?)$/i, tool: "help", extractArgs: () => ({}) },
+  {
+    pattern: /^(?:help|ayuda|que puedes hacer|qué puedes hacer|\?)$/i,
+    tool: "help",
+    extractArgs: () => ({}),
+  },
 ];
 
 function classifyIntent(text: string): { tool: string; args: Record<string, unknown> } | null {
@@ -253,9 +273,7 @@ function getHelpResponse(): string {
 
 // ── Chat Engine ──────────────────────────────────────────────────────────────
 
-export async function processCopilotChat(
-  request: CopilotRequest,
-): Promise<CopilotResponse> {
+export async function processCopilotChat(request: CopilotRequest): Promise<CopilotResponse> {
   const lastMessage = request.messages[request.messages.length - 1];
   if (!lastMessage || lastMessage.role !== "user") {
     return { message: "No user message found." };
@@ -302,7 +320,9 @@ Puedes decirme algo como:
 
   // Handle createApiKey — extract name from sentence
   if (intent.tool === "createApiKey") {
-    const nameMatch = userText.match(/(?:llamad[oa]|named?|par[ae]?)\s*["'']?([a-zA-Z0-9_-]+)["'']?/i);
+    const nameMatch = userText.match(
+      /(?:llamad[oa]|named?|par[ae]?)\s*["'']?([a-zA-Z0-9_-]+)["'']?/i
+    );
     const name = nameMatch ? nameMatch[1] : "copilot-key";
     const scopeMatch = userText.match(/(?:con\s*)?scope?s?\s*:?\s*["'']?([a-zA-Z,]+)["'']?/i);
     const scopes = scopeMatch ? scopeMatch[1] : undefined;
@@ -336,7 +356,10 @@ Puedes decirme algo como:
 
   // For all other tools, dispatch directly
   const tool = getCopilotTool(intent.tool);
-  if (!tool) return { message: `I don't have a tool for that yet. Try asking in a different way.\n\n${getHelpResponse()}` };
+  if (!tool)
+    return {
+      message: `I don't have a tool for that yet. Try asking in a different way.\n\n${getHelpResponse()}`,
+    };
 
   const result = await tool.handler(intent.args);
   return {

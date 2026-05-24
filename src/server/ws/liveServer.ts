@@ -19,25 +19,11 @@ import { randomUUID } from "crypto";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
-import type {
-  WsClientMessage,
-  WsServerMessage,
-  WsAuthResult,
-} from "./types";
+import type { WsClientMessage, WsServerMessage, WsAuthResult } from "./types";
 
-import {
-  emit,
-  on,
-  onAny,
-  getEventHistory,
-  type HistoryEntry,
-} from "@/lib/events/eventBus";
+import { emit, on, onAny, getEventHistory, type HistoryEntry } from "@/lib/events/eventBus";
 
-import type {
-  DashboardEventName,
-  DashboardEventMap,
-  DashboardChannel,
-} from "@/lib/events/types";
+import type { DashboardEventName, DashboardEventMap, DashboardChannel } from "@/lib/events/types";
 
 import { CHANNEL_EVENTS, getChannelForEvent } from "@/lib/events/types";
 
@@ -69,9 +55,7 @@ const BACKLOG_MAX = 500;
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 
-async function authorizeConnection(
-  request: import("http").IncomingMessage,
-): Promise<WsAuthResult> {
+async function authorizeConnection(request: import("http").IncomingMessage): Promise<WsAuthResult> {
   const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
   const token = url.searchParams.get("token") || extractBearerToken(request);
 
@@ -235,7 +219,7 @@ function startHeartbeat(server: WebSocketServer): void {
  * Start the live dashboard WebSocket server.
  */
 export async function startLiveDashboardServer(
-  port = DEFAULT_PORT,
+  port = DEFAULT_PORT
 ): Promise<import("http").Server> {
   const server = createServer();
   const wss = new WebSocketServer({ server });
@@ -272,7 +256,9 @@ export async function startLiveDashboardServer(
 
     clients.set(clientId, client);
 
-    console.log(`[LiveWS] Client connected: ${clientId} (${client.remoteAddress}) [${clients.size} total]`);
+    console.log(
+      `[LiveWS] Client connected: ${clientId} (${client.remoteAddress}) [${clients.size} total]`
+    );
 
     // Handle messages
     ws.on("message", (data) => {

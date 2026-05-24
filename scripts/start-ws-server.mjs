@@ -13,7 +13,10 @@
  *   OMNIROUTE_DISABLE_LIVE_WS — Set to "1" or "true" to disable
  */
 
-if (process.env.OMNIROUTE_DISABLE_LIVE_WS === "1" || process.env.OMNIROUTE_DISABLE_LIVE_WS === "true") {
+if (
+  process.env.OMNIROUTE_DISABLE_LIVE_WS === "1" ||
+  process.env.OMNIROUTE_DISABLE_LIVE_WS === "true"
+) {
   console.log("[LiveWS] Disabled via OMNIROUTE_DISABLE_LIVE_WS");
   process.exit(0);
 }

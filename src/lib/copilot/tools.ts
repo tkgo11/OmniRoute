@@ -6,19 +6,9 @@
  */
 
 import { execSync } from "node:child_process";
-import {
-  createCombo,
-  getAllCombos,
-  updateCombo,
-} from "@/lib/db/combos";
-import {
-  getProviderConnections,
-} from "@/lib/db/providers";
-import {
-  createApiKey,
-  revokeApiKey,
-  getApiKeys,
-} from "@/lib/db/apiKeys";
+import { createCombo, getAllCombos, updateCombo } from "@/lib/db/combos";
+import { getProviderConnections } from "@/lib/db/providers";
+import { createApiKey, revokeApiKey, getApiKeys } from "@/lib/db/apiKeys";
 import {
   searchSymbols,
   findCallers,
@@ -29,9 +19,7 @@ import {
   isCodeGraphAvailable,
   type CodeGraphQueryResult,
 } from "./codegraphKnowledge";
-import {
-  getAllKeyGroups,
-} from "@/lib/db/apiKeyGroups";
+import { getAllKeyGroups } from "@/lib/db/apiKeyGroups";
 
 // ── Tool Types ───────────────────────────────────────────────────────────────
 
@@ -62,7 +50,10 @@ function formatCodeGraphResult(result: CodeGraphQueryResult): string {
   const rows = result.data as Record<string, unknown>[];
   if (!rows || rows.length === 0) return "No results found.";
 
-  return JSON.stringify(rows.slice(0, 30), null, 2) + (rows.length > 30 ? `\n... and ${rows.length - 30} more` : "");
+  return (
+    JSON.stringify(rows.slice(0, 30), null, 2) +
+    (rows.length > 30 ? `\n... and ${rows.length - 30} more` : "")
+  );
 }
 
 // ── Helper: check if omniroute CLI is available ──────────────────────────────
@@ -85,9 +76,15 @@ export const COPILOT_TOOLS: CopilotTool[] = [
   // ── Provider Tools ──
   {
     name: "listProviders",
-    description: "List all configured provider connections, optionally filtered by type (apikey, oauth, local, free)",
+    description:
+      "List all configured provider connections, optionally filtered by type (apikey, oauth, local, free)",
     parameters: [
-      { name: "type", type: "string", description: "Filter: apikey, oauth, local, free, or empty for all", required: false },
+      {
+        name: "type",
+        type: "string",
+        description: "Filter: apikey, oauth, local, free, or empty for all",
+        required: false,
+      },
     ],
     handler: async (args) => {
       const filter: Record<string, unknown> = {};
@@ -98,7 +95,9 @@ export const COPILOT_TOOLS: CopilotTool[] = [
       let output = `**${connectionsAny.length} provider(s) configured**\n\n`;
       for (const c of connectionsAny) {
         const status = c.isActive ? "✅" : "⛔";
-        const models = c.models ? `(${(Array.isArray(c.models) ? c.models : JSON.parse(c.models || "[]")).length} models)` : "";
+        const models = c.models
+          ? `(${(Array.isArray(c.models) ? c.models : JSON.parse(c.models || "[]")).length} models)`
+          : "";
         output += `${status} **${c.displayName || c.name}** — \`${c.id}\` (${c.type}) ${models}\n`;
       }
       return output;
@@ -112,11 +111,16 @@ export const COPILOT_TOOLS: CopilotTool[] = [
     parameters: [],
     handler: async () => {
       const combos = await getAllCombos();
-      if (!combos || combos.length === 0) return "No combos configured. Create one with createCombo.";
+      if (!combos || combos.length === 0)
+        return "No combos configured. Create one with createCombo.";
       let output = `**${combos.length} combo(s) configured**\n\n`;
       for (const c of combos as any[]) {
         const active = c.isActive ? "✅" : "⛔";
-        const targets = c.targets ? (typeof c.targets === "string" ? JSON.parse(c.targets).length : c.targets.length) : 0;
+        const targets = c.targets
+          ? typeof c.targets === "string"
+            ? JSON.parse(c.targets).length
+            : c.targets.length
+          : 0;
         output += `${active} **${c.name}** — strategy: \`${c.strategy}\` — ${targets} target(s)\n`;
       }
       return output;
@@ -127,8 +131,18 @@ export const COPILOT_TOOLS: CopilotTool[] = [
     description: "Create a new routing combo with specified targets",
     parameters: [
       { name: "name", type: "string", description: "Combo display name", required: true },
-      { name: "strategy", type: "string", description: "Routing strategy: priority, weighted, round-robin, cost-optimized, auto", required: true },
-      { name: "targets", type: "string", description: "JSON array of targets: [{provider, model, weight?}]", required: true },
+      {
+        name: "strategy",
+        type: "string",
+        description: "Routing strategy: priority, weighted, round-robin, cost-optimized, auto",
+        required: true,
+      },
+      {
+        name: "targets",
+        type: "string",
+        description: "JSON array of targets: [{provider, model, weight?}]",
+        required: true,
+      },
     ],
     handler: async (args) => {
       const name = args.name as string;
@@ -177,12 +191,19 @@ export const COPILOT_TOOLS: CopilotTool[] = [
     parameters: [
       { name: "name", type: "string", description: "Human-readable key name", required: true },
       { name: "machineId", type: "string", description: "Machine identifier", required: false },
-      { name: "scopes", type: "string", description: "Comma-separated scopes (e.g., manage,read)", required: false },
+      {
+        name: "scopes",
+        type: "string",
+        description: "Comma-separated scopes (e.g., manage,read)",
+        required: false,
+      },
     ],
     handler: async (args) => {
       const name = args.name as string;
       if (!name) return "Error: name is required.";
-      const scopes = args.scopes ? (args.scopes as string).split(",").map((s) => s.trim()) : undefined;
+      const scopes = args.scopes
+        ? (args.scopes as string).split(",").map((s) => s.trim())
+        : undefined;
       const result = await createApiKey(name, (args.machineId as string) || "copilot", scopes);
       const r = result as any;
       return `✅ API key **${name}** created:\n\`\`\`\n${r.key}\n\`\`\`\nSave this now — it won't be shown again.`;
@@ -214,7 +235,10 @@ export const COPILOT_TOOLS: CopilotTool[] = [
       let output = `**${gArr.length} key group(s)**\n\n`;
       for (const g of gArr) {
         const perms = g.allowedModels
-          ? (typeof g.allowedModels === "string" ? JSON.parse(g.allowedModels) : g.allowedModels).join(", ")
+          ? (typeof g.allowedModels === "string"
+              ? JSON.parse(g.allowedModels)
+              : g.allowedModels
+            ).join(", ")
           : "all models";
         output += `📦 **${g.name}** — models: ${perms}\n`;
       }
@@ -225,9 +249,16 @@ export const COPILOT_TOOLS: CopilotTool[] = [
   // ── CodeGraph Tools ──
   {
     name: "searchCodeGraph",
-    description: "Search for symbols in the OmniRoute codebase by name (functions, classes, types, variables). Use this to understand how the app works internally.",
+    description:
+      "Search for symbols in the OmniRoute codebase by name (functions, classes, types, variables). Use this to understand how the app works internally.",
     parameters: [
-      { name: "query", type: "string", description: "Symbol name or partial name to search (e.g., 'handleChat', 'sanitizeMessage', 'CircuitBreaker')", required: true },
+      {
+        name: "query",
+        type: "string",
+        description:
+          "Symbol name or partial name to search (e.g., 'handleChat', 'sanitizeMessage', 'CircuitBreaker')",
+        required: true,
+      },
       { name: "limit", type: "number", description: "Max results (default 20)", required: false },
     ],
     handler: async (args) => {
@@ -240,9 +271,15 @@ export const COPILOT_TOOLS: CopilotTool[] = [
   },
   {
     name: "findCallers",
-    description: "Find all code that calls or references a specific function/symbol. Useful for impact analysis — 'what would break if I changed X?'",
+    description:
+      "Find all code that calls or references a specific function/symbol. Useful for impact analysis — 'what would break if I changed X?'",
     parameters: [
-      { name: "symbol", type: "string", description: "Symbol name to find callers for (e.g., 'handleChatCore', 'translateRequest')", required: true },
+      {
+        name: "symbol",
+        type: "string",
+        description: "Symbol name to find callers for (e.g., 'handleChatCore', 'translateRequest')",
+        required: true,
+      },
       { name: "limit", type: "number", description: "Max results (default 20)", required: false },
     ],
     handler: async (args) => {
@@ -255,9 +292,15 @@ export const COPILOT_TOOLS: CopilotTool[] = [
   },
   {
     name: "findCallees",
-    description: "Find all functions/symbols that a specific function calls. Useful for understanding dependencies and code flow within OmniRoute.",
+    description:
+      "Find all functions/symbols that a specific function calls. Useful for understanding dependencies and code flow within OmniRoute.",
     parameters: [
-      { name: "symbol", type: "string", description: "Symbol name to find callees for (e.g., 'handleChatCore', 'getExecutor')", required: true },
+      {
+        name: "symbol",
+        type: "string",
+        description: "Symbol name to find callees for (e.g., 'handleChatCore', 'getExecutor')",
+        required: true,
+      },
       { name: "limit", type: "number", description: "Max results (default 20)", required: false },
     ],
     handler: async (args) => {
@@ -270,9 +313,15 @@ export const COPILOT_TOOLS: CopilotTool[] = [
   },
   {
     name: "getFileContext",
-    description: "Get all symbols defined in a specific file. Useful to understand a file's exports and structure at a glance.",
+    description:
+      "Get all symbols defined in a specific file. Useful to understand a file's exports and structure at a glance.",
     parameters: [
-      { name: "filePath", type: "string", description: "File path (partial or full, e.g., 'chatCore.ts', 'combo.ts', 'src/lib/db/')", required: true },
+      {
+        name: "filePath",
+        type: "string",
+        description: "File path (partial or full, e.g., 'chatCore.ts', 'combo.ts', 'src/lib/db/')",
+        required: true,
+      },
     ],
     handler: async (args) => {
       const fp = args.filePath as string;
@@ -283,9 +332,15 @@ export const COPILOT_TOOLS: CopilotTool[] = [
   },
   {
     name: "listCodeGraphFiles",
-    description: "List all files indexed by CodeGraph, optionally filtered by language. Tells you what parts of the codebase are available for analysis.",
+    description:
+      "List all files indexed by CodeGraph, optionally filtered by language. Tells you what parts of the codebase are available for analysis.",
     parameters: [
-      { name: "language", type: "string", description: "Filter by language: typescript, javascript, python, etc.", required: false },
+      {
+        name: "language",
+        type: "string",
+        description: "Filter by language: typescript, javascript, python, etc.",
+        required: false,
+      },
     ],
     handler: async (args) => {
       const lang = args.language as string | undefined;
@@ -295,7 +350,8 @@ export const COPILOT_TOOLS: CopilotTool[] = [
   },
   {
     name: "codeGraphStats",
-    description: "Get summary stats about the CodeGraph index: total nodes, edges, files, languages, and node kinds indexed.",
+    description:
+      "Get summary stats about the CodeGraph index: total nodes, edges, files, languages, and node kinds indexed.",
     parameters: [],
     handler: async () => {
       const result = getCodeGraphStats();
@@ -306,9 +362,16 @@ export const COPILOT_TOOLS: CopilotTool[] = [
   // ── CLI Execution Tool ──
   {
     name: "runOmniRouteCli",
-    description: "Execute an 'omniroute' CLI command to configure or query the OmniRoute app. Gives complete control over the app — use for advanced operations not covered by other tools. Common commands: omniroute list-keys, omniroute switch-combo [id], omniroute set-budget 10, omniroute set-strategy [id] priority, omniroute health, omniroute mcp (starts MCP server), omniroute db-health, omniroute reset-password.",
+    description:
+      "Execute an 'omniroute' CLI command to configure or query the OmniRoute app. Gives complete control over the app — use for advanced operations not covered by other tools. Common commands: omniroute list-keys, omniroute switch-combo [id], omniroute set-budget 10, omniroute set-strategy [id] priority, omniroute health, omniroute mcp (starts MCP server), omniroute db-health, omniroute reset-password.",
     parameters: [
-      { name: "command", type: "string", description: "CLI command arguments (everything after 'omniroute'). Example: 'list-keys', 'switch-combo abc123', 'health'", required: true },
+      {
+        name: "command",
+        type: "string",
+        description:
+          "CLI command arguments (everything after 'omniroute'). Example: 'list-keys', 'switch-combo abc123', 'health'",
+        required: true,
+      },
     ],
     handler: async (args) => {
       const cmd = args.command as string;
@@ -339,7 +402,5 @@ export function getCopilotTool(name: string): CopilotTool | undefined {
 }
 
 export function getCopilotToolDescriptions(): string {
-  return COPILOT_TOOLS.map(
-    (t) => `- **${t.name}**: ${t.description}`,
-  ).join("\n");
+  return COPILOT_TOOLS.map((t) => `- **${t.name}**: ${t.description}`).join("\n");
 }

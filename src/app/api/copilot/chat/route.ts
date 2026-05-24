@@ -16,10 +16,7 @@ export async function POST(request: Request) {
     const body: CopilotRequest = await request.json();
 
     if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
-      return NextResponse.json(
-        { error: "messages array is required" },
-        { status: 400 },
-      );
+      return NextResponse.json({ error: "messages array is required" }, { status: 400 });
     }
 
     const response = await processCopilotChat(body);
@@ -27,9 +24,6 @@ export async function POST(request: Request) {
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Copilot error: ${message}` },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: `Copilot error: ${message}` }, { status: 500 });
   }
 }

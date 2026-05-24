@@ -46,11 +46,7 @@ export interface WsErrorMessage {
   message: string;
 }
 
-export type WsServerMessage =
-  | WsEventMessage
-  | WsPongMessage
-  | WsWelcomeMessage
-  | WsErrorMessage;
+export type WsServerMessage = WsEventMessage | WsPongMessage | WsWelcomeMessage | WsErrorMessage;
 
 // ── Auth ─────────────────────────────────────────────────────────────────
 

@@ -104,7 +104,7 @@ export interface DashboardEventMap {
 // ── Event Bus Listener ────────────────────────────────────────────────────
 
 export type DashboardEventListener<E extends DashboardEventName> = (
-  payload: DashboardEventMap[E],
+  payload: DashboardEventMap[E]
 ) => void;
 
 // ── Channel Definitions ───────────────────────────────────────────────────
@@ -120,9 +120,7 @@ export const CHANNEL_EVENTS: Record<DashboardChannel, DashboardEventName[]> = {
 };
 
 /** Get channel for an event */
-export function getChannelForEvent(
-  event: DashboardEventName,
-): DashboardChannel | undefined {
+export function getChannelForEvent(event: DashboardEventName): DashboardChannel | undefined {
   for (const [channel, events] of Object.entries(CHANNEL_EVENTS)) {
     if (events.includes(event)) return channel as DashboardChannel;
   }

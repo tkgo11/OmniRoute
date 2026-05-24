@@ -177,6 +177,7 @@ scripts/i18n/_pending-keys.json
 .claude/commands/port-upstream-features-cc.md
 .claude/commands/port-upstream-issues-cc.md
 .claude/worktrees/
+.codegraph/
 
 # Fumadocs generated source
 .source/

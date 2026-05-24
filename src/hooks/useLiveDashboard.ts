@@ -46,6 +46,8 @@ export interface UseLiveDashboardOptions {
   channels?: DashboardChannel[];
   /** Auto-reconnect on disconnect (default: true) */
   autoReconnect?: boolean;
+  /** Event callback */
+  onEvent?: (payload: WsEventPayload) => void;
 }
 
 /**
@@ -57,6 +59,7 @@ export function useLiveDashboard({
   apiKey,
   channels = ["requests", "combo", "credentials"],
   autoReconnect = true,
+  onEvent,
 }: UseLiveDashboardOptions = {}) {
   const [connection, setConnection] = useState<DashboardConnectionState>({
     isConnected: false,
@@ -71,6 +74,11 @@ export function useLiveDashboard({
   const mountedRef = useRef(true);
   const maxEvents = 500;
 
+  const onEventRef = useRef(onEvent);
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  }, [onEvent]);
+
   const connect = useCallback(() => {
     if (!mountedRef.current) return;
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -82,9 +90,7 @@ export function useLiveDashboard({
     }));
 
     try {
-      const wsUrlWithAuth = apiKey
-        ? `${wsUrl}?token=${encodeURIComponent(apiKey)}`
-        : wsUrl;
+      const wsUrlWithAuth = apiKey ? `${wsUrl}?token=${encodeURIComponent(apiKey)}` : wsUrl;
 
       const ws = new WebSocket(wsUrlWithAuth);
       wsRef.current = ws;
@@ -118,6 +124,7 @@ export function useLiveDashboard({
               const next = [...prev, payload];
               return next.length > maxEvents ? next.slice(-maxEvents) : next;
             });
+            onEventRef.current?.(payload);
           } else if (msg.type === "pong") {
             // Heartbeat response
           } else if (msg.type === "welcome") {
@@ -127,6 +134,15 @@ export function useLiveDashboard({
                 const next = [...prev, ...msg.data];
                 return next.length > maxEvents ? next.slice(-maxEvents) : next;
               });
+              for (const item of msg.data) {
+                const payload: WsEventPayload = {
+                  event: item.event,
+                  channel: item.channel,
+                  data: item.data,
+                  timestamp: item.timestamp || Date.now(),
+                };
+                onEventRef.current?.(payload);
+              }
             }
           } else if (msg.type === "error") {
             console.error("[LiveWS] Server error:", msg.code, msg.message);
@@ -202,12 +218,12 @@ export function useLiveDashboard({
     /** Filter events by channel */
     getEventsByChannel: useCallback(
       (channel: DashboardChannel) => events.filter((e) => e.channel === channel),
-      [events],
+      [events]
     ),
     /** Filter events by name */
     getEventsByName: useCallback(
       (eventName: string) => events.filter((e) => e.event === eventName),
-      [events],
+      [events]
     ),
     /** Clear event history */
     clearEvents: useCallback(() => setEvents([]), []),
@@ -233,81 +249,93 @@ export interface LiveRequest {
  * Hook for monitoring live requests.
  */
 export function useLiveRequests(options?: UseLiveDashboardOptions) {
-  const { events, connection, reconnect } = useLiveDashboard({
+  const [requestState, setRequestState] = useState<{
+    active: Map<string, LiveRequest>;
+    completed: LiveRequest[];
+  }>({
+    active: new Map(),
+    completed: [],
+  });
+  const maxCompleted = 100;
+
+  const handleEvent = useCallback((event: WsEventPayload) => {
+    if (event.channel !== "requests") return;
+
+    if (event.event === "request.started") {
+      const data = event.data as any;
+      setRequestState((prev) => {
+        const active = new Map(prev.active);
+        active.set(data.id, {
+          id: data.id,
+          model: data.model,
+          provider: data.provider,
+          timestamp: data.timestamp,
+          status: "pending",
+          comboName: data.comboName,
+        });
+        return { active, completed: prev.completed };
+      });
+    } else if (event.event === "request.streaming") {
+      const data = event.data as any;
+      setRequestState((prev) => {
+        const active = new Map(prev.active);
+        const existing = active.get(data.id);
+        if (existing) {
+          active.set(data.id, { ...existing, status: "running" });
+        }
+        return { active, completed: prev.completed };
+      });
+    } else if (event.event === "request.completed") {
+      const data = event.data as any;
+      setRequestState((prev) => {
+        const active = new Map(prev.active);
+        const existing = active.get(data.id);
+        if (existing) {
+          active.delete(data.id);
+          const done: LiveRequest = {
+            ...existing,
+            status: data.status === "success" ? "success" : "error",
+            tokensInput: data.tokensInput,
+            tokensOutput: data.tokensOutput,
+            latencyMs: data.latencyMs,
+            error: data.error,
+          };
+          const completed = [done, ...prev.completed].slice(0, maxCompleted);
+          return { active, completed };
+        }
+        return prev;
+      });
+    } else if (event.event === "request.failed") {
+      const data = event.data as any;
+      setRequestState((prev) => {
+        const active = new Map(prev.active);
+        const existing = active.get(data.id);
+        if (existing) {
+          active.delete(data.id);
+          const done: LiveRequest = {
+            ...existing,
+            status: "error",
+            error: data.error,
+            latencyMs: data.latencyMs,
+          };
+          const completed = [done, ...prev.completed].slice(0, maxCompleted);
+          return { active, completed };
+        }
+        return prev;
+      });
+    }
+  }, []);
+
+  const { connection, reconnect } = useLiveDashboard({
     channels: ["requests"],
+    onEvent: handleEvent,
     ...options,
   });
 
-  const [activeRequests, setActiveRequests] = useState<Map<string, LiveRequest>>(new Map());
-  const [completedRequests, setCompletedRequests] = useState<LiveRequest[]>([]);
-  const maxCompleted = 100;
-
-  useEffect(() => {
-    setActiveRequests((prev) => {
-      const next = new Map(prev);
-
-      for (const event of events) {
-        if (event.event === "request.started") {
-          const data = event.data as any;
-          next.set(data.id, {
-            id: data.id,
-            model: data.model,
-            provider: data.provider,
-            timestamp: data.timestamp,
-            status: "pending",
-            comboName: data.comboName,
-          });
-        } else if (event.event === "request.streaming") {
-          const data = event.data as any;
-          const existing = next.get(data.id);
-          if (existing) {
-            next.set(data.id, { ...existing, status: "running" });
-          }
-        } else if (event.event === "request.completed") {
-          const data = event.data as any;
-          const existing = next.get(data.id);
-          if (existing) {
-            next.delete(data.id);
-            setCompletedRequests((prev) => {
-              const done: LiveRequest = {
-                ...existing,
-                status: data.status === "success" ? "success" : "error",
-                tokensInput: data.tokensInput,
-                tokensOutput: data.tokensOutput,
-                latencyMs: data.latencyMs,
-                error: data.error,
-              };
-              return [done, ...prev].slice(0, maxCompleted);
-            });
-          }
-        } else if (event.event === "request.failed") {
-          const data = event.data as any;
-          const existing = next.get(data.id);
-          if (existing) {
-            next.delete(data.id);
-            setCompletedRequests((prev) => {
-              const done: LiveRequest = {
-                ...existing,
-                status: "error",
-                error: data.error,
-                latencyMs: data.latencyMs,
-              };
-              return [done, ...prev].slice(0, maxCompleted);
-            });
-          }
-        }
-      }
-
-      return next;
-    });
-
-    // Reset events after processing
-  }, [events]);
-
   return {
-    activeRequests: Array.from(activeRequests.values()),
-    completedRequests,
-    activeCount: activeRequests.size,
+    activeRequests: Array.from(requestState.active.values()),
+    completedRequests: requestState.completed,
+    activeCount: requestState.active.size,
     isConnected: connection.isConnected,
     reconnect,
   };
@@ -330,67 +358,68 @@ export interface LiveComboEvent {
  * Hook for monitoring live combo cascade status.
  */
 export function useLiveComboStatus(options?: UseLiveDashboardOptions) {
-  const { events, connection, reconnect } = useLiveDashboard({
-    channels: ["combo"],
-    ...options,
-  });
-
   const [comboEvents, setComboEvents] = useState<LiveComboEvent[]>([]);
   const maxComboEvents = 200;
 
-  useEffect(() => {
-    for (const event of events) {
-      const data = event.data as any;
-      let comboEvent: LiveComboEvent | null = null;
+  const handleEvent = useCallback((event: WsEventPayload) => {
+    if (event.channel !== "combo") return;
 
-      if (event.event === "combo.target.attempt") {
-        comboEvent = {
-          comboName: data.comboName,
-          targetIndex: data.targetIndex,
-          provider: data.provider,
-          model: data.model,
-          type: "attempt",
-          timestamp: event.timestamp,
-        };
-      } else if (event.event === "combo.target.succeeded") {
-        comboEvent = {
-          comboName: data.comboName,
-          targetIndex: data.targetIndex,
-          provider: data.provider,
-          model: data.model,
-          type: "succeeded",
-          latencyMs: data.latencyMs,
-          timestamp: event.timestamp,
-        };
-      } else if (event.event === "combo.target.failed") {
-        comboEvent = {
-          comboName: data.comboName,
-          targetIndex: data.targetIndex,
-          provider: data.provider,
-          model: data.model,
-          type: "failed",
-          error: data.error,
-          latencyMs: data.latencyMs,
-          timestamp: event.timestamp,
-        };
-      }
+    const data = event.data as any;
+    let comboEvent: LiveComboEvent | null = null;
 
-      if (comboEvent) {
-        setComboEvents((prev) => [comboEvent!, ...prev].slice(0, maxComboEvents));
-      }
+    if (event.event === "combo.target.attempt") {
+      comboEvent = {
+        comboName: data.comboName,
+        targetIndex: data.targetIndex,
+        provider: data.provider,
+        model: data.model,
+        type: "attempt",
+        timestamp: event.timestamp,
+      };
+    } else if (event.event === "combo.target.succeeded") {
+      comboEvent = {
+        comboName: data.comboName,
+        targetIndex: data.targetIndex,
+        provider: data.provider,
+        model: data.model,
+        type: "succeeded",
+        latencyMs: data.latencyMs,
+        timestamp: event.timestamp,
+      };
+    } else if (event.event === "combo.target.failed") {
+      comboEvent = {
+        comboName: data.comboName,
+        targetIndex: data.targetIndex,
+        provider: data.provider,
+        model: data.model,
+        type: "failed",
+        error: data.error,
+        latencyMs: data.latencyMs,
+        timestamp: event.timestamp,
+      };
     }
-  }, [events]);
+
+    if (comboEvent) {
+      setComboEvents((prev) => [comboEvent!, ...prev].slice(0, maxComboEvents));
+    }
+  }, []);
+
+  const { connection, reconnect } = useLiveDashboard({
+    channels: ["combo"],
+    onEvent: handleEvent,
+    ...options,
+  });
 
   /** Get events for a specific combo */
   const getComboHistory = useCallback(
     (comboName: string) => comboEvents.filter((e) => e.comboName === comboName),
-    [comboEvents],
+    [comboEvents]
   );
 
   /** Get the last event for a specific combo */
   const getLastComboEvent = useCallback(
     (comboName: string) => comboEvents.find((e) => e.comboName === comboName),
-    [comboEvents],
+    [comboEvents]
   );
 
   return {

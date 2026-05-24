@@ -60,10 +60,7 @@ export interface HistoryEntry {
 /**
  * Get recent event history (for clients that connect late).
  */
-export function getEventHistory(
-  sinceTimestamp?: number,
-  maxEntries = 50,
-): HistoryEntry[] {
+export function getEventHistory(sinceTimestamp?: number, maxEntries = 50): HistoryEntry[] {
   const state = getBusState();
   let history = state.history;
   if (sinceTimestamp) {
@@ -77,10 +74,7 @@ export function getEventHistory(
 /**
  * Emit an event to all subscribers.
  */
-export function emit<E extends DashboardEventName>(
-  event: E,
-  payload: DashboardEventMap[E],
-): void {
+export function emit<E extends DashboardEventName>(event: E, payload: DashboardEventMap[E]): void {
   const state = getBusState();
   state.emitCount++;
 
@@ -118,7 +112,7 @@ export function emit<E extends DashboardEventName>(
  */
 export function on<E extends DashboardEventName>(
   event: E,
-  listener: DashboardEventListener<E>,
+  listener: DashboardEventListener<E>
 ): () => void {
   const state = getBusState();
   if (!state.listeners.has(event)) {
@@ -135,9 +129,7 @@ export function on<E extends DashboardEventName>(
  * Subscribe to ALL events (wildcard).
  * Returns an unsubscribe function.
  */
-export function onAny(
-  listener: (event: DashboardEventName, payload: unknown) => void,
-): () => void {
+export function onAny(listener: (event: DashboardEventName, payload: unknown) => void): () => void {
   const state = getBusState();
   state.wildcardListeners.add(listener);
   return () => {
@@ -150,9 +142,11 @@ export function onAny(
  */
 export function off<E extends DashboardEventName>(
   event: E,
-  listener: DashboardEventListener<E>,
+  listener: DashboardEventListener<E>
 ): void {
-  getBusState().listeners.get(event)?.delete(listener as Function);
+  getBusState()
+    .listeners.get(event)
+    ?.delete(listener as Function);
 }
 
 /**

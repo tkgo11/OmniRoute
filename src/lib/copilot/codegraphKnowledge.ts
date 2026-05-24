@@ -104,15 +104,22 @@ function queryDb(query: string, params: unknown[] = []): CodeGraphQueryResult {
 
       // Use better-sqlite3 if available
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+         
         const Database = require("better-sqlite3");
         _db = new Database(dbPath, { readonly: true });
       } catch {
-        return { success: false, data: null, error: "better-sqlite3 not available", engine: "none" };
+        return {
+          success: false,
+          data: null,
+          error: "better-sqlite3 not available",
+          engine: "none",
+        };
       }
     }
 
-    const stmt = (_db as { prepare: (sql: string) => { all: (params: unknown[]) => unknown[] } }).prepare(query);
+    const stmt = (
+      _db as { prepare: (sql: string) => { all: (params: unknown[]) => unknown[] } }
+    ).prepare(query);
     const rows = stmt.all(params);
     return { success: true, data: rows, engine: "sqlite" };
   } catch (err) {
@@ -146,10 +153,10 @@ export function searchSymbols(query: string, limit = 20): CodeGraphQueryResult {
   const sanitized = query.replace(/[^a-zA-Z0-9_]/g, " ").trim();
   if (!sanitized) {
     // Fallback to LIKE if query is empty after sanitization
-    return queryDb(
-      `SELECT * FROM nodes WHERE lower(name) LIKE ? ORDER BY kind, name LIMIT ?`,
-      [`%${query.toLowerCase()}%`, limit],
-    );
+    return queryDb(`SELECT * FROM nodes WHERE lower(name) LIKE ? ORDER BY kind, name LIMIT ?`, [
+      `%${query.toLowerCase()}%`,
+      limit,
+    ]);
   }
 
   const ftsQuery = sanitized
@@ -175,7 +182,7 @@ export function findCallers(symbolName: string, limit = 20): CodeGraphQueryResul
      WHERE t.name = ?
      ORDER BY e.kind
      LIMIT ?`,
-    [symbolName, limit],
+    [symbolName, limit]
   );
 }
 
@@ -194,7 +201,7 @@ export function findCallees(symbolName: string, limit = 20): CodeGraphQueryResul
      WHERE s.name = ?
      ORDER BY e.kind
      LIMIT ?`,
-    [symbolName, limit],
+    [symbolName, limit]
   );
 }
 
@@ -208,7 +215,7 @@ export function getFileContext(filePath: string): CodeGraphQueryResult {
      WHERE file_path LIKE ? OR file_path = ?
      ORDER BY start_line
      LIMIT 100`,
-    [`%${filePath}`, filePath],
+    [`%${filePath}`, filePath]
   );
 }
 
@@ -217,10 +224,10 @@ export function getFileContext(filePath: string): CodeGraphQueryResult {
  */
 export function listFiles(language?: string, limit = 50): CodeGraphQueryResult {
   if (language) {
-    return queryDb(
-      `SELECT * FROM files WHERE language = ? ORDER BY path LIMIT ?`,
-      [language, limit],
-    );
+    return queryDb(`SELECT * FROM files WHERE language = ? ORDER BY path LIMIT ?`, [
+      language,
+      limit,
+    ]);
   }
   return queryDb(`SELECT * FROM files ORDER BY path LIMIT ?`, [limit]);
 }
@@ -229,7 +236,8 @@ export function listFiles(language?: string, limit = 50): CodeGraphQueryResult {
  * Get impact analysis: find symbols that depend on a given symbol (transitively).
  */
 export function getImpactAnalysis(symbolName: string, depth = 1): CodeGraphQueryResult {
-  if (depth <= 0) return { success: false, data: null, error: "Depth must be >= 1", engine: "none" };
+  if (depth <= 0)
+    return { success: false, data: null, error: "Depth must be >= 1", engine: "none" };
 
   // Direct callers (depth 1)
   const directCallers = findCallers(symbolName);
