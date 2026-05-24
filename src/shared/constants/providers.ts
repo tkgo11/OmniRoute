@@ -375,6 +375,17 @@ export const WEB_COOKIE_PROVIDERS = {
       "Copy the value of 'convex-session-id'. Also open DevTools → Network, copy the Cookie header from any request. " +
       "Paste both values here. See provider setup docs for a step-by-step guide.",
   },
+  "adapta-web": {
+    id: "adapta-web",
+    alias: "adp-web",
+    name: "Adapta.org (Adapta One Web)",
+    icon: "auto_awesome",
+    color: "#6E3AD3",
+    textIcon: "AW",
+    website: "https://agent.adapta.one",
+    authHint:
+      "Paste your __client cookie value from .clerk.agent.adapta.one (DevTools → Application → Cookies)",
+  },
 };
 
 // API Key Providers
