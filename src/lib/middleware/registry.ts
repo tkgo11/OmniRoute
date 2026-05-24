@@ -54,10 +54,10 @@ function getRegistryState() {
 function compileHookCode(code: string, hookName: string): HookMiddleware {
   try {
     // Wrap in async function that returns HookResult
-    const fn = new Function(
-      "context",
-      `return (async () => { ${code} })();`,
-    ) as (context: PreRequestHookContext) => Promise<HookResult>;
+    // eslint-disable-next-line no-new-func
+    const fn = new Function("context", `return (async () => { ${code} })();`) as (
+      context: PreRequestHookContext
+    ) => Promise<HookResult>;
     return fn;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Compilation error";
@@ -85,8 +85,10 @@ export function createHookContext(params: {
     metadata: {},
     log: {
       info: (tag: string, msg: string) => logger.info?.(tag, msg) ?? console.log(`[${tag}] ${msg}`),
-      warn: (tag: string, msg: string) => logger.warn?.(tag, msg) ?? console.warn(`[${tag}] ${msg}`),
-      error: (tag: string, msg: string) => logger.error?.(tag, msg) ?? console.error(`[${tag}] ${msg}`),
+      warn: (tag: string, msg: string) =>
+        logger.warn?.(tag, msg) ?? console.warn(`[${tag}] ${msg}`),
+      error: (tag: string, msg: string) =>
+        logger.error?.(tag, msg) ?? console.error(`[${tag}] ${msg}`),
     },
   };
 }
@@ -96,10 +98,7 @@ export function createHookContext(params: {
 /**
  * Register a pre-request hook.
  */
-export function registerHook(
-  config: HookConfig,
-  middleware?: HookMiddleware,
-): void {
+export function registerHook(config: HookConfig, middleware?: HookMiddleware): void {
   const state = getRegistryState();
 
   if (state.hooks.has(config.name)) {
@@ -130,10 +129,7 @@ export function unregisterHook(name: string): boolean {
 /**
  * Update an existing hook's config and optionally recompile.
  */
-export function updateHook(
-  name: string,
-  updates: Partial<HookConfig>,
-): boolean {
+export function updateHook(name: string, updates: Partial<HookConfig>): boolean {
   const state = getRegistryState();
   const existing = state.hooks.get(name);
   if (!existing) return false;
@@ -197,7 +193,7 @@ export function loadHooksFromConfig(rows: HookConfig[]): void {
  */
 export async function runHooks(
   context: PreRequestHookContext,
-  comboId?: string,
+  comboId?: string
 ): Promise<{
   context: PreRequestHookContext;
   response?: { status: number; body: Record<string, unknown> };
@@ -208,7 +204,7 @@ export async function runHooks(
       (h) =>
         h.enabled &&
         (h.scope.type === "global" ||
-          (h.scope.type === "combo" && comboId && h.scope.comboId === comboId)),
+          (h.scope.type === "combo" && comboId && h.scope.comboId === comboId))
     )
     .sort((a, b) => a.priority - b.priority);
 
@@ -288,10 +284,7 @@ export async function runHooks(
 /**
  * Get execution logs.
  */
-export function getHookLogs(
-  hookName?: string,
-  limit = 50,
-): HookLogEntry[] {
+export function getHookLogs(hookName?: string, limit = 50): HookLogEntry[] {
   const state = getRegistryState();
   let logs = state.logs;
   if (hookName) {

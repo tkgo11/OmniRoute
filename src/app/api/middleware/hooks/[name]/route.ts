@@ -5,11 +5,7 @@ import {
   deleteMiddlewareHook,
   getHookLogs,
 } from "@/lib/localDb";
-import {
-  registerHook,
-  unregisterHook,
-  updateHook,
-} from "@/lib/middleware/registry";
+import { registerHook, unregisterHook, updateHook } from "@/lib/middleware/registry";
 import type { HookConfig } from "@/lib/middleware/types";
 
 type RouteParams = { params: Promise<{ name: string }> };
@@ -80,10 +76,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     return NextResponse.json({ hook: saved });
   } catch (error: any) {
     console.error("[API] PUT /api/middleware/hooks/[name] error:", error);
-    return NextResponse.json(
-      { error: error?.message || "Failed to update hook" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: error?.message || "Failed to update hook" }, { status: 500 });
   }
 }
 

@@ -104,7 +104,6 @@ function queryDb(query: string, params: unknown[] = []): CodeGraphQueryResult {
 
       // Use better-sqlite3 if available
       try {
-         
         const Database = require("better-sqlite3");
         _db = new Database(dbPath, { readonly: true });
       } catch {

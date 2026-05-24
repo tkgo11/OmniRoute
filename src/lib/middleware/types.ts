@@ -14,9 +14,7 @@ export enum HookPriority {
 }
 
 /** Scope of a hook — global (all requests) or combo-scoped */
-export type HookScope =
-  | { type: "global" }
-  | { type: "combo"; comboId: string };
+export type HookScope = { type: "global" } | { type: "combo"; comboId: string };
 
 /**
  * Context passed to each hook.
@@ -36,7 +34,11 @@ export interface PreRequestHookContext {
   /** Arbitrary metadata for hooks to pass data between each other */
   metadata: Record<string, unknown>;
   /** Logger instance */
-  log: { info: (tag: string, msg: string) => void; warn: (tag: string, msg: string) => void; error: (tag: string, msg: string) => void };
+  log: {
+    info: (tag: string, msg: string) => void;
+    warn: (tag: string, msg: string) => void;
+    error: (tag: string, msg: string) => void;
+  };
 }
 
 /**
@@ -62,9 +64,7 @@ export interface HookResult {
  * Hook middleware function signature.
  * Receives a mutable context and returns an optional result.
  */
-export type HookMiddleware = (
-  context: PreRequestHookContext,
-) => HookResult | Promise<HookResult>;
+export type HookMiddleware = (context: PreRequestHookContext) => HookResult | Promise<HookResult>;
 
 /**
  * Registered hook configuration.

@@ -17,9 +17,10 @@ function rowToHookConfig(row: HookConfigRow): HookConfig {
     name: row.name,
     description: row.description,
     priority: row.priority,
-    scope: row.scope_type === "combo" && row.combo_id
-      ? { type: "combo", comboId: row.combo_id }
-      : { type: "global" },
+    scope:
+      row.scope_type === "combo" && row.combo_id
+        ? { type: "combo", comboId: row.combo_id }
+        : { type: "global" },
     enabled: row.enabled === 1,
     code: row.code,
     createdAt: row.created_at,
@@ -52,7 +53,9 @@ function hookConfigToRow(config: HookConfig): HookConfigRow {
  */
 export function getAllMiddlewareHooks(): HookConfig[] {
   const db = getDbInstance() as any;
-  const rows = db.prepare("SELECT * FROM middleware_hooks ORDER BY priority ASC, name ASC").all() as HookConfigRow[];
+  const rows = db
+    .prepare("SELECT * FROM middleware_hooks ORDER BY priority ASC, name ASC")
+    .all() as HookConfigRow[];
   return rows.map(rowToHookConfig);
 }
 
@@ -61,9 +64,9 @@ export function getAllMiddlewareHooks(): HookConfig[] {
  */
 export function getEnabledMiddlewareHooks(): HookConfig[] {
   const db = getDbInstance() as any;
-  const rows = db.prepare(
-    "SELECT * FROM middleware_hooks WHERE enabled = 1 ORDER BY priority ASC",
-  ).all() as HookConfigRow[];
+  const rows = db
+    .prepare("SELECT * FROM middleware_hooks WHERE enabled = 1 ORDER BY priority ASC")
+    .all() as HookConfigRow[];
   return rows.map(rowToHookConfig);
 }
 
@@ -72,9 +75,11 @@ export function getEnabledMiddlewareHooks(): HookConfig[] {
  */
 export function getComboMiddlewareHooks(comboId: string): HookConfig[] {
   const db = getDbInstance() as any;
-  const rows = db.prepare(
-    "SELECT * FROM middleware_hooks WHERE enabled = 1 AND (scope_type = 'global' OR (scope_type = 'combo' AND combo_id = ?)) ORDER BY priority ASC",
-  ).all(comboId) as HookConfigRow[];
+  const rows = db
+    .prepare(
+      "SELECT * FROM middleware_hooks WHERE enabled = 1 AND (scope_type = 'global' OR (scope_type = 'combo' AND combo_id = ?)) ORDER BY priority ASC"
+    )
+    .all(comboId) as HookConfigRow[];
   return rows.map(rowToHookConfig);
 }
 
@@ -83,7 +88,9 @@ export function getComboMiddlewareHooks(comboId: string): HookConfig[] {
  */
 export function getMiddlewareHook(name: string): HookConfig | undefined {
   const db = getDbInstance() as any;
-  const row = db.prepare("SELECT * FROM middleware_hooks WHERE name = ?").get(name) as HookConfigRow | undefined;
+  const row = db.prepare("SELECT * FROM middleware_hooks WHERE name = ?").get(name) as
+    | HookConfigRow
+    | undefined;
   return row ? rowToHookConfig(row) : undefined;
 }
 
@@ -96,10 +103,12 @@ export function createMiddlewareHook(config: HookConfig): HookConfig {
   row.created_at = new Date().toISOString();
   row.updated_at = row.created_at;
 
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO middleware_hooks (name, description, priority, scope_type, combo_id, enabled, code, created_at, updated_at, run_count, last_error)
     VALUES (@name, @description, @priority, @scope_type, @combo_id, @enabled, @code, @created_at, @updated_at, @run_count, @last_error)
-  `).run(row);
+  `
+  ).run(row);
 
   return getMiddlewareHook(config.name)!;
 }
@@ -109,7 +118,7 @@ export function createMiddlewareHook(config: HookConfig): HookConfig {
  */
 export function updateMiddlewareHook(
   name: string,
-  updates: Partial<HookConfig>,
+  updates: Partial<HookConfig>
 ): HookConfig | undefined {
   const existing = getMiddlewareHook(name);
   if (!existing) return undefined;
@@ -118,7 +127,8 @@ export function updateMiddlewareHook(
   const row = hookConfigToRow(updated);
   const db = getDbInstance() as any;
 
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE middleware_hooks SET
       description = @description,
       priority = @priority,
@@ -130,7 +140,8 @@ export function updateMiddlewareHook(
       run_count = @run_count,
       last_error = @last_error
     WHERE name = @name
-  `).run(row);
+  `
+  ).run(row);
 
   return getMiddlewareHook(name);
 }
@@ -147,18 +158,15 @@ export function deleteMiddlewareHook(name: string): boolean {
 /**
  * Increment run count and optionally update last error.
  */
-export function recordHookExecution(
-  name: string,
-  error?: string,
-): void {
+export function recordHookExecution(name: string, error?: string): void {
   const db = getDbInstance() as any;
   if (error) {
     db.prepare(
-      "UPDATE middleware_hooks SET run_count = run_count + 1, last_error = ?, updated_at = datetime('now') WHERE name = ?",
+      "UPDATE middleware_hooks SET run_count = run_count + 1, last_error = ?, updated_at = datetime('now') WHERE name = ?"
     ).run(error, name);
   } else {
     db.prepare(
-      "UPDATE middleware_hooks SET run_count = run_count + 1, last_error = NULL, updated_at = datetime('now') WHERE name = ?",
+      "UPDATE middleware_hooks SET run_count = run_count + 1, last_error = NULL, updated_at = datetime('now') WHERE name = ?"
     ).run(name);
   }
 }
@@ -170,10 +178,12 @@ export function recordHookExecution(
  */
 export function insertHookLog(entry: HookLogEntry): void {
   const db = getDbInstance() as any;
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO middleware_logs (id, hook_name, request_id, duration_ms, mutated, skipped, error, timestamp)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  `
+  ).run(
     entry.id,
     entry.hookName,
     entry.requestId,
@@ -181,27 +191,22 @@ export function insertHookLog(entry: HookLogEntry): void {
     entry.mutated ? 1 : 0,
     entry.skipped ? 1 : 0,
     entry.error || null,
-    entry.timestamp,
+    entry.timestamp
   );
 }
 
 /**
  * Get hook execution logs, optionally filtered by hook name.
  */
-export function getHookLogs(
-  hookName?: string,
-  limit = 50,
-): HookLogEntry[] {
+export function getHookLogs(hookName?: string, limit = 50): HookLogEntry[] {
   const db = getDbInstance() as any;
   let rows: any[];
   if (hookName) {
-    rows = db.prepare(
-      "SELECT * FROM middleware_logs WHERE hook_name = ? ORDER BY timestamp DESC LIMIT ?",
-    ).all(hookName, limit);
+    rows = db
+      .prepare("SELECT * FROM middleware_logs WHERE hook_name = ? ORDER BY timestamp DESC LIMIT ?")
+      .all(hookName, limit);
   } else {
-    rows = db.prepare(
-      "SELECT * FROM middleware_logs ORDER BY timestamp DESC LIMIT ?",
-    ).all(limit);
+    rows = db.prepare("SELECT * FROM middleware_logs ORDER BY timestamp DESC LIMIT ?").all(limit);
   }
   return rows.map((r: any) => ({
     id: r.id,
@@ -221,10 +226,14 @@ export function getHookLogs(
 export function cleanupHookLogs(maxEntries = 10000): number {
   const db = getDbInstance() as any;
   // Delete logs beyond the max, keeping the most recent
-  const result = db.prepare(`
+  const result = db
+    .prepare(
+      `
     DELETE FROM middleware_logs WHERE id NOT IN (
       SELECT id FROM middleware_logs ORDER BY timestamp DESC LIMIT ?
     )
-  `).run(maxEntries);
+  `
+    )
+    .run(maxEntries);
   return result.changes;
 }

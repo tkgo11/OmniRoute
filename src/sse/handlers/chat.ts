@@ -302,9 +302,10 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
   initPreRequestRegistry();
   const hookContext = createHookContext({
     body: body as Record<string, unknown>,
-    headers: Object.fromEntries(
-      request?.headers?.entries() || []
-    ) as Record<string, string | string[] | undefined>,
+    headers: Object.fromEntries(request?.headers?.entries() || []) as Record<
+      string,
+      string | string[] | undefined
+    >,
     model: modelStr,
     combo: undefined,
     apiKeyInfo: apiKeyInfo as Record<string, unknown> | undefined,

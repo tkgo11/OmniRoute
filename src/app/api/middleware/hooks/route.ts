@@ -5,10 +5,7 @@ import {
   getMiddlewareHook,
   getHookLogs,
 } from "@/lib/localDb";
-import {
-  registerHook,
-  getAllHooks,
-} from "@/lib/middleware/registry";
+import { registerHook, getAllHooks } from "@/lib/middleware/registry";
 import type { HookConfig, CreateHookRequest } from "@/lib/middleware/types";
 
 /**
@@ -71,17 +68,14 @@ export async function POST(request: Request) {
     if (!/^[a-zA-Z0-9_-]+$/.test(body.name)) {
       return NextResponse.json(
         { error: "name must contain only letters, numbers, hyphens, and underscores" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     // Check for duplicate
     const existing = getMiddlewareHook(body.name);
     if (existing) {
-      return NextResponse.json(
-        { error: `Hook "${body.name}" already exists` },
-        { status: 409 },
-      );
+      return NextResponse.json({ error: `Hook "${body.name}" already exists` }, { status: 409 });
     }
 
     const hookConfig: HookConfig = {
@@ -105,9 +99,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ hook: saved }, { status: 201 });
   } catch (error: any) {
     console.error("[API] POST /api/middleware/hooks error:", error);
-    return NextResponse.json(
-      { error: error?.message || "Failed to create hook" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: error?.message || "Failed to create hook" }, { status: 500 });
   }
 }
