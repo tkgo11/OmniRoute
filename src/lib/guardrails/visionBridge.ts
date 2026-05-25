@@ -18,25 +18,61 @@ import {
   isVisionBridgeForcedModel,
 } from "@/shared/constants/visionBridgeDefaults";
 
-/// Check if a model name has a model-combo mapping.
-/// When a user sends `model: "gpt-4o"` with a model-combo mapping,
-/// the actual execution model(s) might differ. Non-vision combo
-/// targets would fail with images they can't handle, so the
-/// vision bridge must process images even if body.model supports vision.
-async function checkModelHasComboMapping(model: string): Promise<boolean> {
+/// Check if a model with a combo mapping should trigger vision bridge processing.
+/// Resolves the combo targets and only returns true if at least one target model
+/// does NOT support vision natively. This avoids unnecessary vision model calls
+/// when all combo targets can handle images directly.
+async function shouldProcessImagesForComboModel(model: string): Promise<boolean> {
   try {
-    // 1. Check for exact combo name match
     const { getComboByName } = await import("@/lib/localDb");
-    const exactCombo = await getComboByName(model);
-    if (exactCombo) return true;
-
-    // 2. Check for model-combo mapping (glob pattern match)
     const { resolveComboForModel } = await import("@/lib/db/modelComboMappings");
-    const mapping = await resolveComboForModel(model);
-    return mapping !== null;
-  } catch {
-    // Tables may not exist (pre-migration), or DB not initialized
+
+    // 1. Try to find combo by exact name match
+    let combo = await getComboByName(model);
+
+    // 2. If no exact match, try model-combo mapping
+    if (!combo) {
+      const mapping = await resolveComboForModel(model);
+      if (!mapping) return false;
+      const comboName = mapping.comboName ?? mapping.name ?? null;
+      if (!comboName) return false;
+      combo = await getComboByName(comboName);
+    }
+
+    if (!combo) return false;
+
+    // 3. Get the combo's models (target steps)
+    const rawModels = (combo as Record<string, unknown>).models;
+    if (!Array.isArray(rawModels)) return false;
+
+    // 4. Check each target for vision support
+    // combo-ref → conservative (process images)
+    // model step with no native vision → process images
+    // all model steps with native vision → safe to skip
+    let hasModelStep = false;
+    for (const step of rawModels) {
+      const s = step as Record<string, unknown>;
+      if (s.kind === "combo-ref") return true;
+      if (s.kind === "model") {
+        hasModelStep = true;
+        const targetModel = s.model;
+        if (typeof targetModel === "string") {
+          const caps = getResolvedModelCapabilities(targetModel);
+          if (caps.supportsVision !== true) {
+            return true;
+          }
+        }
+      }
+    }
+
+    // All model steps support vision — safe to skip
+    if (hasModelStep) return false;
+
+    // No recognizable steps — don't force bridge
     return false;
+  } catch {
+    // On error, try to process images (conservative)
+    return true;
   }
 }
 
@@ -47,7 +83,7 @@ export interface VisionBridgeDependencies {
     config: import("./visionBridgeHelpers").VisionModelConfig,
     apiKey?: string
   ) => Promise<string>;
-  /** Skip real DB lookup — return true to test combo-mapping path, false for normal path. */
+  /** Override combo-target vision check — return true to force processing, false to skip. */
   checkModelHasComboMapping?: (model: string) => Promise<boolean>;
 }
 
@@ -91,7 +127,7 @@ export class VisionBridgeGuardrail extends BaseGuardrail {
       // bridge must process images so combo targets can describe them.
       const hasMapping = this.deps.checkModelHasComboMapping
         ? await this.deps.checkModelHasComboMapping(model)
-        : await checkModelHasComboMapping(model);
+        : await shouldProcessImagesForComboModel(model);
       if (!hasMapping) {
         return { block: false };
       }
