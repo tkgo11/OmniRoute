@@ -18,6 +18,28 @@ import {
   isVisionBridgeForcedModel,
 } from "@/shared/constants/visionBridgeDefaults";
 
+/// Check if a model name has a model-combo mapping.
+/// When a user sends `model: "gpt-4o"` with a model-combo mapping,
+/// the actual execution model(s) might differ. Non-vision combo
+/// targets would fail with images they can't handle, so the
+/// vision bridge must process images even if body.model supports vision.
+async function checkModelHasComboMapping(model: string): Promise<boolean> {
+  try {
+    // 1. Check for exact combo name match
+    const { getComboByName } = await import("@/lib/localDb");
+    const exactCombo = await getComboByName(model);
+    if (exactCombo) return true;
+
+    // 2. Check for model-combo mapping (glob pattern match)
+    const { resolveComboForModel } = await import("@/lib/db/modelComboMappings");
+    const mapping = await resolveComboForModel(model);
+    return mapping !== null;
+  } catch {
+    // Tables may not exist (pre-migration), or DB not initialized
+    return false;
+  }
+}
+
 export interface VisionBridgeDependencies {
   getSettings?: () => Promise<Record<string, unknown>>;
   callVisionModel?: (
@@ -25,6 +47,8 @@ export interface VisionBridgeDependencies {
     config: import("./visionBridgeHelpers").VisionModelConfig,
     apiKey?: string
   ) => Promise<string>;
+  /** Skip real DB lookup — return true to test combo-mapping path, false for normal path. */
+  checkModelHasComboMapping?: (model: string) => Promise<boolean>;
 }
 
 export class VisionBridgeGuardrail extends BaseGuardrail {
@@ -61,7 +85,17 @@ export class VisionBridgeGuardrail extends BaseGuardrail {
     // 4. Check if model supports vision
     const capabilities = getResolvedModelCapabilities(model);
     if (capabilities.supportsVision === true && !forceVisionBridge) {
-      return { block: false };
+      // The request model supports vision natively, but check if a
+      // model-combo mapping routes this model through a combo where
+      // some targets may NOT support vision. In that case, the vision
+      // bridge must process images so combo targets can describe them.
+      const hasMapping = this.deps.checkModelHasComboMapping
+        ? await this.deps.checkModelHasComboMapping(model)
+        : await checkModelHasComboMapping(model);
+      if (!hasMapping) {
+        return { block: false };
+      }
+      // Combo mapping found — fall through to process images
     }
 
     // 5. Get body and check for messages
