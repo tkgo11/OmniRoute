@@ -1169,7 +1169,6 @@ export default function ProviderDetailPage() {
     Record<string, { proxy: any; level: string } | null>
   >({});
   const [importingModels, setImportingModels] = useState(false);
-  const [showTutorialModal, setShowTutorialModal] = useState(false);
   const [importingZed, setImportingZed] = useState(false);
   const [showZedManual, setShowZedManual] = useState(false);
   const [zedManualProvider, setZedManualProvider] = useState("openai");

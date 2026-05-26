@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### ✨ New Features
+
+- **proxy:** serverless relay endpoints with rate limiting (#2734)
+- **pwa:** enhanced manifest + push notification support (#2733)
+- **auth:** API key groups with model-level permissions (#2732)
+- **playground:** combo routing visual simulator (#2731)
+- **resilience:** credential health check + adaptive circuit breaker (#2730)
+
+### ♻️ Refactors
+
+- **openapi:** api endpoints audit (#2729)
+
+### 🔧 Bug Fixes
+
+- **db:** hotfix migration version collision (068_services + 068_webhooks_kind_metadata) (#2727)
+
 ## [3.8.4] — 2026-05-25
 
 ### ✨ New Features
@@ -29,6 +47,24 @@
 - Fix combo cascade skipping on credential check timeout
 - Fix team sessions going idle (worktree initialization)
 
+## [Unreleased]
+
+### ✨ New Features
+
+- **proxy:** serverless relay endpoints with rate limiting (#2734)
+- **pwa:** enhanced manifest + push notification support (#2733)
+- **auth:** API key groups with model-level permissions (#2732)
+- **playground:** combo routing visual simulator (#2731)
+- **resilience:** credential health check + adaptive circuit breaker (#2730)
+
+### ♻️ Refactors
+
+- **openapi:** api endpoints audit (#2729)
+
+### 🔧 Bug Fixes
+
+- **db:** hotfix migration version collision (068_services + 068_webhooks_kind_metadata) (#2727)
+
 ## [3.8.4] — 2026-05-24
 
 ### ✨ New Features
@@ -38,6 +74,24 @@
 ### 🔧 Bug Fixes
 
 ---
+
+## [Unreleased]
+
+### ✨ New Features
+
+- **proxy:** serverless relay endpoints with rate limiting (#2734)
+- **pwa:** enhanced manifest + push notification support (#2733)
+- **auth:** API key groups with model-level permissions (#2732)
+- **playground:** combo routing visual simulator (#2731)
+- **resilience:** credential health check + adaptive circuit breaker (#2730)
+
+### ♻️ Refactors
+
+- **openapi:** api endpoints audit (#2729)
+
+### 🔧 Bug Fixes
+
+- **db:** hotfix migration version collision (068_services + 068_webhooks_kind_metadata) (#2727)
 
 ## [3.8.4] — 2026-05-25
 
