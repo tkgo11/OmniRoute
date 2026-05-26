@@ -1668,10 +1668,7 @@ export async function handleComboChat({
     try {
       return await Promise.race([
         handleSingleModelWrapped(b, modelStr, target).catch((err) => {
-          return new Response(JSON.stringify({ error: { message: err.message } }), {
-            status: 502,
-            headers: { "Content-Type": "application/json" },
-          });
+          return errorResponse(502, err?.message ?? "Upstream model error");
         }),
         timeoutPromise,
       ]);
