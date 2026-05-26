@@ -3498,7 +3498,7 @@ export default function ProviderDetailPage() {
                 {t("connectionCountLabel", { count: connections.length })}
               </p>
               <EmailPrivacyToggle size="md" />
-              {(providerId === "inner-ai" || providerId === "adapta-web") && (
+              {providerId === "adapta-web" && (
                 <button
                   onClick={() => setShowTutorialModal(true)}
                   className="text-sm font-medium underline underline-offset-2 opacity-70 hover:opacity-100 transition-opacity"
@@ -4705,78 +4705,6 @@ export default function ProviderDetailPage() {
           )}
         </div>
       </Modal>
-
-      {/* Inner.ai Tutorial Modal */}
-      {providerId === "inner-ai" && (
-        <Modal
-          isOpen={showTutorialModal}
-          onClose={() => setShowTutorialModal(false)}
-          title="Como conectar o Inner.ai"
-        >
-          <div className="flex flex-col gap-4 text-sm">
-            <p className="text-text-muted">
-              O Inner.ai requer o token de sessão <strong>e</strong> o seu e-mail de login. Cole os
-              dois no campo de autenticação separados por um espaço.
-            </p>
-            <ol className="flex flex-col gap-3 list-none">
-              {[
-                {
-                  step: 1,
-                  title: "Acesse o Inner.ai e faça login",
-                  desc: "Abra o Chrome e vá para app.innerai.com. Faça login com sua conta.",
-                },
-                {
-                  step: 2,
-                  title: "Abra o DevTools",
-                  desc: "Pressione F12 (Windows/Linux) ou Cmd+Option+I (Mac) para abrir as ferramentas de desenvolvedor.",
-                },
-                {
-                  step: 3,
-                  title: "Navegue até Application → Cookies → .innerai.com",
-                  desc: 'No painel do DevTools, clique na aba "Application". No painel esquerdo, expanda "Cookies" e clique em ".innerai.com".',
-                },
-                {
-                  step: 4,
-                  title: 'Copie o valor do cookie "token"',
-                  desc: 'Procure na lista o cookie de nome "token". Clique duas vezes no campo "Value" e copie o valor completo (começa com "eyJ…").',
-                },
-                {
-                  step: 5,
-                  title: "Cole token + email no campo de autenticação",
-                  desc: "No OmniRoute, cole o token, adicione um espaço e depois o seu e-mail de login do Inner.ai. Exemplo: eyJhbGc... seuemail@exemplo.com",
-                },
-              ].map(({ step, title, desc }) => (
-                <li key={step} className="flex gap-3">
-                  <span
-                    className="flex-none w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                    style={{ background: "#1A56DB" }}
-                  >
-                    {step}
-                  </span>
-                  <div>
-                    <p className="font-medium">{title}</p>
-                    <p className="text-text-muted text-xs mt-0.5">{desc}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            <div
-              className="rounded-lg px-4 py-3 text-xs"
-              style={{
-                background: "rgba(26,86,219,0.08)",
-                border: "1px solid rgba(26,86,219,0.2)",
-              }}
-            >
-              <strong style={{ color: "#1A56DB" }}>Formato:</strong>{" "}
-              <code className="font-mono">eyJhbGc... seuemail@exemplo.com</code>
-              <br />
-              <span className="opacity-75">
-                O token tem validade de ~360 dias. Se expirar, repita o processo acima.
-              </span>
-            </div>
-          </div>
-        </Modal>
-      )}
 
       {/* Adapta Web — Tutorial Modal */}
       {providerId === "adapta-web" && (
@@ -7230,7 +7158,9 @@ function AddApiKeyModal({
   const isBlackboxWeb = provider === "blackbox-web";
   const isMuseSparkWeb = provider === "muse-spark-web";
   const isDeepSeekWeb = provider === "deepseek-web";
-  const isWebSessionProvider = isGrokWeb || isPerplexityWeb || isBlackboxWeb || isMuseSparkWeb;
+  const isClaudeWeb = provider === "claude-web";
+  const isWebSessionProvider =
+    isGrokWeb || isPerplexityWeb || isBlackboxWeb || isMuseSparkWeb || isClaudeWeb;
   const apiKeyOptional = providerAllowsOptionalApiKey(provider);
   const commandCodeAuthPhaseLabel = commandCodeAuthState
     ? {
@@ -7301,11 +7231,13 @@ function AddApiKeyModal({
             ? t("blackboxWebCookiePlaceholder")
             : isMuseSparkWeb
               ? t("museSparkWebCookiePlaceholder")
-              : isQoder
-                ? t("qoderPatPlaceholder")
-                : apiKeyOptional
-                  ? t("optional")
-                  : undefined;
+              : isClaudeWeb
+                ? t("claudeWebCookiePlaceholder")
+                : isQoder
+                  ? t("qoderPatPlaceholder")
+                  : apiKeyOptional
+                    ? t("optional")
+                    : undefined;
   const apiCredentialHint = isQoder
     ? t("qoderPatHint")
     : isDeepSeekWeb
@@ -7318,13 +7250,15 @@ function AddApiKeyModal({
             ? t("blackboxWebCookieHint")
             : isMuseSparkWeb
               ? t("museSparkWebCookieHint")
-              : isLocalSelfHostedProvider
-                ? t("localProviderApiKeyOptionalHint", {
-                    provider: localProviderMetadata?.name || providerName || provider || "",
-                  })
-                : apiKeyOptional
-                  ? t("apiKeyOptionalHint")
-                  : undefined;
+              : isClaudeWeb
+                ? t("claudeWebCookieHint")
+                : isLocalSelfHostedProvider
+                  ? t("localProviderApiKeyOptionalHint", {
+                      provider: localProviderMetadata?.name || providerName || provider || "",
+                    })
+                  : apiKeyOptional
+                    ? t("apiKeyOptionalHint")
+                    : undefined;
 
   const handleValidate = async () => {
     setValidating(true);

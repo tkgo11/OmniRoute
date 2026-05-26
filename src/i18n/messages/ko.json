@@ -2644,17 +2644,7 @@
     "apiEndpointsNoMatch": "__MISSING__:No endpoints match your filter",
     "localServer": "__MISSING__:Local Server",
     "cloudOmniroute": "__MISSING__:Cloud OmniRoute",
-    "copyUrl": "__MISSING__:Copy URL",
-    "tierAll": "모든 티어",
-    "tierAuth": "Auth",
-    "tierLoopback": "로컬 전용",
-    "tierAlwaysProtected": "항상 보호됨",
-    "tierPublic": "공개",
-    "showInternal": "내부 표시",
-    "hideInternal": "내부 숨기기",
-    "badgeLoopbackTooltip": "로컬 전용: 루프백 IP가 아닌 IP에서 차단됨",
-    "badgeAlwaysProtectedTooltip": "항상 보호됨: requireLogin=false일 때도 인증이 필요합니다.",
-    "badgeInternalTooltip": "내부 경로 — 공개 API의 일부가 아님"
+    "copyUrl": "__MISSING__:Copy URL"
   },
   "endpoints": {
     "tabProxy": "엔드포인트 프록시",
@@ -3725,6 +3715,8 @@
     "audioShortLabel": "Audio Short Label",
     "azureOpenAiBaseUrlHint": "Azure Open Ai Base Url Hint",
     "bailianBaseUrlHint": "Bailian Base Url Hint",
+    "claudeWebCookieHint": "Open claude.ai → DevTools → Application → Cookies → claude.ai, copy the 'sessionKey' value. Also need cf_clearance, __cf_bm, _cfuvid for Cloudflare.",
+    "claudeWebCookiePlaceholder": "sessionKey=sk-ant-...",
     "blackboxWebCookieHint": "Blackbox Web Cookie Hint",
     "blackboxWebCookiePlaceholder": "Blackbox Web Cookie Placeholder",
     "t3ChatWebCookieHint": "__MISSING__:Open t3.chat → DevTools → Application → Local Storage → https://t3.chat, copy 'convex-session-id'. Then open DevTools → Network, copy the full Cookie header from any chat request. Paste both values in the fields below.",

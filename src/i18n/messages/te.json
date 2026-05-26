@@ -2644,17 +2644,7 @@
     "apiEndpointsNoMatch": "__MISSING__:No endpoints match your filter",
     "localServer": "__MISSING__:Local Server",
     "cloudOmniroute": "__MISSING__:Cloud OmniRoute",
-    "copyUrl": "__MISSING__:Copy URL",
-    "tierAll": "అన్ని స్థాయిలు",
-    "tierAuth": "Auth",
-    "tierLoopback": "స్థానిక-మాత్రం",
-    "tierAlwaysProtected": "ఎప్పుడూ-రక్షితమైన",
-    "tierPublic": "ప్రజా",
-    "showInternal": "అంతర్గతాన్ని చూపించు",
-    "hideInternal": "అంతర్గతాన్ని దాచండి",
-    "badgeLoopbackTooltip": "స్థానిక-మాత్రం: లూప్‌బ్యాక్ IP ల నుండి అడ్డుకోబడింది",
-    "badgeAlwaysProtectedTooltip": "ఎప్పుడూ రక్షితమైనది: requireLogin=false ఉన్నప్పుడు కూడా auth అవసరం",
-    "badgeInternalTooltip": "అంతర్గత మార్గం — ప్రజా API యొక్క భాగం కాదు"
+    "copyUrl": "__MISSING__:Copy URL"
   },
   "endpoints": {
     "tabProxy": "Endpoint Proxy",
@@ -3725,6 +3715,8 @@
     "audioShortLabel": "Audio Short Label",
     "azureOpenAiBaseUrlHint": "Azure Open Ai Base Url Hint",
     "bailianBaseUrlHint": "Bailian Base Url Hint",
+    "claudeWebCookieHint": "Open claude.ai → DevTools → Application → Cookies → claude.ai, copy the 'sessionKey' value. Also need cf_clearance, __cf_bm, _cfuvid for Cloudflare.",
+    "claudeWebCookiePlaceholder": "sessionKey=sk-ant-...",
     "blackboxWebCookieHint": "Blackbox Web Cookie Hint",
     "blackboxWebCookiePlaceholder": "Blackbox Web Cookie Placeholder",
     "t3ChatWebCookieHint": "__MISSING__:Open t3.chat → DevTools → Application → Local Storage → https://t3.chat, copy 'convex-session-id'. Then open DevTools → Network, copy the full Cookie header from any chat request. Paste both values in the fields below.",
