@@ -103,8 +103,8 @@ function estimateContextWindow(model: string): number {
   const modelLower = model.toLowerCase();
   if (modelLower.includes("128k") || modelLower.includes("128")) return 128000;
   if (modelLower.includes("200k") || modelLower.includes("200")) return 200000;
-  if (modelLower.includes("1m") || modelLower.includes("1m")) return 1000000;
-  if (modelLower.includes("2m") || modelLower.includes("2m")) return 2000000;
+  if (modelLower.includes("1m")) return 1000000;
+  if (modelLower.includes("2m")) return 2000000;
   return 128000;
 }
 

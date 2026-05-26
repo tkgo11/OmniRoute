@@ -10,10 +10,16 @@ COPY scripts/build/postinstall.mjs ./scripts/build/postinstall.mjs
 COPY scripts/build/postinstallSupport.mjs ./scripts/build/postinstallSupport.mjs
 COPY scripts/build/native-binary-compat.mjs ./scripts/build/native-binary-compat.mjs
 ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
+# `--ignore-scripts` blocks the install/postinstall hooks of dependencies,
+# closing the supply-chain attack surface where a transitive dep can run
+# arbitrary code at install time. OmniRoute's own postinstall (better-sqlite3
+# binary touchups, @swc/helpers copy) is only needed when a packaged
+# `app/node_modules` is unpacked — inside the Docker builder we are doing a
+# fresh native-platform install, so dropping the scripts is safe.
 RUN if [ -f package-lock.json ]; then \
-    npm ci --no-audit --no-fund --legacy-peer-deps; \
+    npm ci --no-audit --no-fund --legacy-peer-deps --ignore-scripts; \
     else \
-    npm install --no-audit --no-fund --legacy-peer-deps; \
+    npm install --no-audit --no-fund --legacy-peer-deps --ignore-scripts; \
     fi
 
 COPY . ./
@@ -65,7 +71,14 @@ COPY --from=builder /app/scripts/build/runtime-env.mjs ./build/runtime-env.mjs
 COPY --from=builder /app/scripts/build/bootstrap-env.mjs ./build/bootstrap-env.mjs
 COPY --from=builder /app/scripts/dev/healthcheck.mjs ./healthcheck.mjs
 
+# Hand /app over to the baked-in `node` non-root user (UID/GID 1000) so the
+# runtime process never holds root privileges. The chown happens after all
+# COPYs so it covers files originally owned by root in the builder stage.
+RUN chown -R node:node /app
+
 EXPOSE 20128
+
+USER node
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD ["node", "healthcheck.mjs"]
@@ -73,6 +86,11 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 CMD ["node", "dev/run-standalone.mjs"]
 
 FROM runner-base AS runner-cli
+
+# Drop back to root briefly so we can install system + global npm packages,
+# then return to the `node` non-root user before the CMD inherited from
+# runner-base runs.
+USER root
 
 # Install system dependencies required by openclaw (git+ssh references).
 RUN apt-get update \
@@ -82,4 +100,6 @@ RUN apt-get update \
 
 # Install CLI tools globally. Separate layer from apt for better cache reuse.
 RUN npm install -g --no-audit --no-fund @openai/codex @anthropic-ai/claude-code droid openclaw@latest
+
+USER node
 

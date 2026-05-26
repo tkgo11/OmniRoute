@@ -209,7 +209,7 @@ function scanCodeVars({ cwd } = {}) {
  * Diff helper.
  */
 function diff(set, against) {
-  return [...set].filter((v) => !against.has(v)).sort();
+  return [...set].filter((v) => !against.has(v)).sort((a, b) => a.localeCompare(b));
 }
 
 // ─── Programmatic entry point ──────────────────────────────────────────────

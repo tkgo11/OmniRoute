@@ -63,8 +63,9 @@ function runUserSystemctl(args, { ignoreFailure = true } = {}) {
   try {
     execSync(`systemctl --user ${args}`, { stdio: "ignore" });
     return true;
-  } catch {
-    return ignoreFailure ? false : false;
+  } catch (err) {
+    if (!ignoreFailure) throw err;
+    return false;
   }
 }
 

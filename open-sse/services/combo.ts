@@ -1653,17 +1653,25 @@ export async function handleComboChat({
     let timeoutId;
     const timeoutPromise = new Promise((resolve) => {
       timeoutId = setTimeout(() => {
-        log.warn("COMBO", `Model ${modelStr} exceeded ${COMBO_MODEL_TIMEOUT_MS}ms timeout — falling back`);
-        resolve(new Response(
-          JSON.stringify({ error: { message: `Model ${modelStr} timed out` } }),
-          { status: 524, headers: { 'Content-Type': 'application/json' } }
-        ));
+        log.warn(
+          "COMBO",
+          `Model ${modelStr} exceeded ${COMBO_MODEL_TIMEOUT_MS}ms timeout — falling back`
+        );
+        resolve(
+          new Response(JSON.stringify({ error: { message: `Model ${modelStr} timed out` } }), {
+            status: 524,
+            headers: { "Content-Type": "application/json" },
+          })
+        );
       }, COMBO_MODEL_TIMEOUT_MS);
     });
     try {
       return await Promise.race([
         handleSingleModelWrapped(b, modelStr, target).catch((err) => {
-          return new Response(JSON.stringify({ error: { message: err.message } }), { status: 502, headers: { "Content-Type": "application/json" } });
+          return new Response(JSON.stringify({ error: { message: err.message } }), {
+            status: 502,
+            headers: { "Content-Type": "application/json" },
+          });
         }),
         timeoutPromise,
       ]);
@@ -2208,7 +2216,6 @@ export async function handleComboChat({
             lastError = `Upstream response failed quality validation: ${quality.reason}`;
             if (!lastStatus) lastStatus = 502;
             if (i > 0) fallbackCount++;
-            break; // move to next model
             emit("combo.target.failed", {
               comboName: combo.name,
               targetIndex: i,
@@ -2217,6 +2224,7 @@ export async function handleComboChat({
               error: `Quality: ${quality.reason}`,
               latencyMs: Date.now() - startTime,
             });
+            break; // move to next model
           }
           const latencyMs = Date.now() - startTime;
           emit("combo.target.succeeded", {
