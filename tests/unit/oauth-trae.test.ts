@@ -52,6 +52,12 @@ test("TRAE_CONFIG has required API endpoint fields", () => {
   assert.ok(TRAE_CONFIG.webUrl.startsWith("https://"), "webUrl must use HTTPS");
 });
 
+test("TRAE_CONFIG exposes token storage paths for all platforms (#2658)", () => {
+  assert.ok(TRAE_CONFIG.tokenStoragePaths.linux);
+  assert.ok(TRAE_CONFIG.tokenStoragePaths.macos);
+  assert.ok(TRAE_CONFIG.tokenStoragePaths.windows);
+});
+
 // ---------------------------------------------------------------------------
 // mapTokens
 // ---------------------------------------------------------------------------
@@ -67,6 +73,17 @@ test("trae mapTokens returns expected structure with valid input", () => {
   assert.equal(mapped.accessToken, "trae-test-token");
   assert.equal(mapped.refreshToken, null, "Trae import_token has no refresh token");
   assert.equal(mapped.expiresIn, 7200);
+  assert.equal(mapped.providerSpecificData.authMethod, "imported");
+});
+
+test("trae mapTokens preserves machineId in providerSpecificData (#2658)", () => {
+  const provider = PROVIDERS.trae;
+  const mapped = provider.mapTokens({
+    accessToken: "tk_test",
+    expiresIn: 3600,
+    machineId: "machine-xyz",
+  });
+  assert.equal(mapped.providerSpecificData.machineId, "machine-xyz");
   assert.equal(mapped.providerSpecificData.authMethod, "imported");
 });
 

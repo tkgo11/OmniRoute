@@ -21,11 +21,12 @@ import { TRAE_CONFIG } from "../constants/oauth";
 export const trae = {
   config: TRAE_CONFIG,
   flowType: "import_token",
-  mapTokens: (tokens) => ({
+  mapTokens: (tokens: { accessToken: string; expiresIn?: number; machineId?: string }) => ({
     accessToken: tokens.accessToken,
     refreshToken: null,
     expiresIn: tokens.expiresIn || 86400,
     providerSpecificData: {
+      machineId: tokens.machineId,
       authMethod: "imported",
     },
   }),
