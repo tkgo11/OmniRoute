@@ -41,7 +41,7 @@ blob-report
 # Issue #2348: The Dashboard Docs viewer reads markdown from `/app/docs` at
 # runtime. The previous `docs/*` block hid every file except openapi.yaml,
 # so the in-product help screen failed with ENOENT for every page.
-# We now keep the English markdown tree but drop bulky i18n mirrors (~45 MB).
+# Translations (~51 MB) are excluded — the Docs viewer reads English sources.
 # v3.8.3+ (fumadocs-mdx): `npm run build` webpack-bundles docs — keep assets referenced
 # from English markdown (docs/diagrams/exported/*.svg, docs/screenshots/*.png).
 docs/i18n/**
