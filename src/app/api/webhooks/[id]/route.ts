@@ -13,6 +13,7 @@ import { validateBody, isValidationFailure } from "@/shared/validation/helpers";
 import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { encryptMetadata } from "@/lib/webhookDispatcher";
 import { isEncryptionEnabled } from "@/lib/db/encryption";
+import { parseAndValidatePublicUrl } from "@/shared/network/outboundUrlGuard";
 
 const WEBHOOK_KINDS = ["slack", "telegram", "discord", "custom"] as const;
 
@@ -70,6 +71,17 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         { error: "Telegram webhooks require STORAGE_ENCRYPTION_KEY to be configured" },
         { status: 400 }
       );
+    }
+
+    if (rest.url !== undefined && effectiveKind !== "telegram") {
+      try {
+        parseAndValidatePublicUrl(rest.url);
+      } catch (err: any) {
+        return NextResponse.json(
+          { error: err?.message || "Blocked private or invalid webhook URL" },
+          { status: 400 }
+        );
+      }
     }
 
     const updateData: Parameters<typeof updateWebhookRecord>[1] = { ...rest };
