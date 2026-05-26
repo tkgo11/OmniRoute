@@ -1,3 +1,8 @@
+---
+title: "Embedded Services"
+description: "Reference for 9Router and CLIProxyAPI"
+---
+
 # Embedded Services
 
 > **Version:** v3.8.4
