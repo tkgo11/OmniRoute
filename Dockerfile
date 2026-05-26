@@ -1,7 +1,9 @@
 FROM node:24-trixie-slim AS builder
 WORKDIR /app
 
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+  apt-get update \
   && apt-get install -y --no-install-recommends libsecret-1-0 ca-certificates python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 
@@ -10,24 +12,23 @@ COPY scripts/build/postinstall.mjs ./scripts/build/postinstall.mjs
 COPY scripts/build/postinstallSupport.mjs ./scripts/build/postinstallSupport.mjs
 COPY scripts/build/native-binary-compat.mjs ./scripts/build/native-binary-compat.mjs
 ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
-# `--ignore-scripts` blocks the install/postinstall hooks of dependencies,
+# --ignore-scripts blocks the install/postinstall hooks of dependencies,
 # closing the supply-chain attack surface where a transitive dep can run
-# arbitrary code at install time. OmniRoute's own postinstall (better-sqlite3
-# binary touchups, @swc/helpers copy) is only needed when a packaged
-# `app/node_modules` is unpacked — inside the Docker builder we are doing a
-# fresh native-platform install, so dropping the scripts is safe.
+# arbitrary code at install time. OmniRoute's own postinstall (
+# better-sqlite3 binary touchups, @swc/helpers copy) is only needed when
+# a packaged app/node_modules is unpacked — inside the Docker builder we
+# are doing a fresh native-platform install, so dropping the scripts is safe.
 #
 # We REQUIRE a committed package-lock.json so resolved dependency versions
-# are reproducible. Falling back to `npm install` would let the lockfile
-# float and pull in different transitive trees between builds, which is
-# both a reproducibility and a security-sensitive concern (SonarCloud
-# vulnerability dockerfile:S6476).
+# are reproducible.
 RUN test -f package-lock.json \
   || (echo "package-lock.json is required for reproducible Docker builds" >&2 && exit 1)
-RUN npm ci --no-audit --no-fund --legacy-peer-deps --ignore-scripts
+RUN --mount=type=cache,target=/root/.npm \
+  npm ci --no-audit --no-fund --legacy-peer-deps --ignore-scripts
 
 COPY . ./
-RUN mkdir -p /app/data && npm run build -- --webpack
+RUN --mount=type=cache,target=/app/.next/cache \
+  mkdir -p /app/data && npm run build -- --webpack
 
 FROM node:24-trixie-slim AS runner-base
 WORKDIR /app
@@ -45,7 +46,9 @@ ENV NODE_OPTIONS="--max-old-space-size=256"
 
 # Data directory inside Docker — must match the volume mount in docker-compose.yml
 ENV DATA_DIR=/app/data
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+  apt-get update \
   && apt-get install -y --no-install-recommends libsecret-1-0 ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 RUN mkdir -p /app/data
@@ -66,9 +69,9 @@ COPY --from=builder /app/src/lib/db/migrations ./migrations
 ENV OMNIROUTE_MIGRATIONS_DIR=/app/migrations
 # MITM server.cjs is spawned at runtime via child_process — not traced by nft
 COPY --from=builder /app/src/mitm/server.cjs ./src/mitm/server.cjs
-# Documentation files and OpenAPI spec are read from disk at runtime.
-# Next.js standalone tracing does not include them.
-COPY --from=builder /app/docs ./docs
+# Runtime docs are pruned by .dockerignore to English markdown + OpenAPI.
+# Next.js standalone tracing does not include docs read via fs.
+COPY --from=builder /app/.next/standalone/docs ./docs
 
 COPY --from=builder /app/scripts/dev/run-standalone.mjs ./dev/run-standalone.mjs
 COPY --from=builder /app/scripts/build/runtime-env.mjs ./build/runtime-env.mjs
@@ -97,13 +100,15 @@ FROM runner-base AS runner-cli
 USER root
 
 # Install system dependencies required by openclaw (git+ssh references).
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+  --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+  apt-get update \
   && apt-get install -y --no-install-recommends git ca-certificates docker.io docker-compose \
   && rm -rf /var/lib/apt/lists/* \
   && git config --system url."https://github.com/".insteadOf "ssh://git@github.com/"
 
 # Install CLI tools globally. Separate layer from apt for better cache reuse.
-RUN npm install -g --no-audit --no-fund @openai/codex @anthropic-ai/claude-code droid openclaw@latest
+RUN --mount=type=cache,target=/root/.npm \
+  npm install -g --no-audit --no-fund @openai/codex @anthropic-ai/claude-code droid openclaw@latest
 
 USER node
-

@@ -6,6 +6,7 @@ import { KiroExecutor } from "./kiro.ts";
 import { CodexExecutor } from "./codex.ts";
 import { CursorExecutor } from "./cursor.ts";
 import { DefaultExecutor } from "./default.ts";
+import { BedrockExecutor } from "./bedrock.ts";
 import { GlmExecutor } from "./glm.ts";
 import { PollinationsExecutor } from "./pollinations.ts";
 import { CloudflareAIExecutor } from "./cloudflare-ai.ts";
@@ -34,6 +35,7 @@ import { ClaudeWebWithAutoRefresh } from "./claude-web-with-auto-refresh.ts";
 import { CopilotWebExecutor } from "./copilot-web.ts";
 import { VeoAIFreeWebExecutor } from "./veoaifree-web.ts";
 import { T3ChatWebExecutor } from "./t3-chat-web.ts";
+import { ClaudeWebExecutor } from "./claude-web.ts";
 import { InnerAiExecutor } from "./inner-ai.ts";
 
 const executors = {
@@ -43,6 +45,7 @@ const executors = {
   qoder: new QoderExecutor(),
   kiro: new KiroExecutor(),
   "amazon-q": new KiroExecutor("amazon-q"),
+  bedrock: new BedrockExecutor(),
   codex: new CodexExecutor(),
   cursor: new CursorExecutor(),
   glm: new GlmExecutor("glm"),
@@ -98,6 +101,8 @@ const executors = {
   "veo-free": new VeoAIFreeWebExecutor(), // Alias
   "t3-web": new T3ChatWebExecutor(),
   t3chat: new T3ChatWebExecutor(), // Alias
+  "claude-web": new ClaudeWebExecutor(),
+  "cw-web": new ClaudeWebExecutor(), // Alias
   "inner-ai": new InnerAiExecutor(),
   "in-ai": new InnerAiExecutor(), // Alias
 };
@@ -123,6 +128,7 @@ export { KiroExecutor } from "./kiro.ts";
 export { CodexExecutor } from "./codex.ts";
 export { CursorExecutor } from "./cursor.ts";
 export { DefaultExecutor } from "./default.ts";
+export { BedrockExecutor } from "./bedrock.ts";
 export { GlmExecutor } from "./glm.ts";
 export { PollinationsExecutor } from "./pollinations.ts";
 export { CloudflareAIExecutor } from "./cloudflare-ai.ts";
@@ -147,6 +153,7 @@ export { WindsurfExecutor } from "./windsurf.ts";
 export { DevinCliExecutor } from "./devin-cli.ts";
 export { CopilotWebExecutor } from "./copilot-web.ts";
 export { VeoAIFreeWebExecutor } from "./veoaifree-web.ts";
+export { ClaudeWebExecutor } from "./claude-web.ts";
 export { DeepSeekWebExecutor } from "./deepseek-web.ts";
 export { DeepSeekWebWithAutoRefreshExecutor } from "./deepseek-web-with-auto-refresh.ts";
 export { AdaptaWebExecutor } from "./adapta-web.ts";

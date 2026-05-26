@@ -102,6 +102,7 @@ export async function getSettings() {
     comboConfigMode: "guided",
     codexServiceTier: { enabled: false },
     claudeFastMode: { enabled: false, supportedModels: ["claude-opus-4-7", "claude-opus-4-6"] },
+    codexSessionAffinityTtlMs: 0,
     alwaysPreserveClientCache: "auto",
     idempotencyWindowMs: 5000,
     wsAuth: false,

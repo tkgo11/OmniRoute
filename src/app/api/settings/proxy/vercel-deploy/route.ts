@@ -154,9 +154,9 @@ export async function POST(request: Request) {
       // only the human-readable message (or a generic fallback).
       let upstreamMessage = "Vercel API rejected the deployment";
       try {
-        const parsed = (await deployRes.json().catch(() => null)) as
-          | { error?: { message?: string } }
-          | null;
+        const parsed = (await deployRes.json().catch(() => null)) as {
+          error?: { message?: string };
+        } | null;
         const candidate = parsed?.error?.message;
         if (typeof candidate === "string" && candidate.trim()) {
           upstreamMessage = candidate.trim().slice(0, 200);

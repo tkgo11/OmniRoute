@@ -284,6 +284,7 @@ jobs:
       - run: npm run check:node-runtime
       - name: Run c8 over shard ${{ matrix.shard }}/8
         run: |
+          rm -rf coverage-shard coverage-shard-report
           # `--temp-directory` (writable via NODE_V8_COVERAGE) is what the merge
           # job reads with `c8 report --temp-directory ...`. Using `--output-dir`
           # only produces the final json *report* and leaves the raw v8 files in
@@ -291,8 +292,9 @@ jobs:
           # dir so the raw coverage files live there and the artifact upload picks
           # them up regardless of `--test-force-exit` timing.
           npx c8 \
-            --reporter=json \
             --temp-directory=coverage-shard \
+            --reports-dir=coverage-shard-report \
+            --reporter=json \
             --exclude=tests/** \
             --exclude=**/*.test.* \
             node --max-old-space-size=4096 --import tsx --test --test-force-exit --test-concurrency=4 \
@@ -302,8 +304,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-shard-${{ matrix.shard }}
-          path: coverage-shard/
-          if-no-files-found: warn
+          path: coverage-shard/*.json
+          if-no-files-found: error
 
   test-coverage:
     name: Coverage
@@ -330,6 +332,11 @@ jobs:
       - name: Merge + report + gate
         run: |
           mkdir -p coverage
+          if [ ! -d coverage-shards ] || ! find coverage-shards -maxdepth 1 -type f -name '*.json' | grep -q .; then
+            echo "::error::No raw coverage shard data was downloaded."
+            find . -maxdepth 3 -type f | sort
+            exit 1
+          fi
           npx c8 report \
             --temp-directory coverage-shards \
             --reports-dir coverage \

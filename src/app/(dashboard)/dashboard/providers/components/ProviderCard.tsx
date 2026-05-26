@@ -1,7 +1,7 @@
 "use client";
 
 import type { MouseEvent, ReactNode } from "react";
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -26,8 +26,21 @@ interface ProviderStats {
   errorTime?: string | null;
   allDisabled?: boolean;
   expiryStatus?: "expired" | "expiring_soon" | string | null;
-  codexFastActive?: boolean;
+  codexServiceTier?: "default" | "priority" | "flex" | null;
 }
+
+const KIND_LABEL: Record<string, string> = {
+  llm: "Chat",
+  embedding: "Embed",
+  image: "Image",
+  imageToText: "I→T",
+  tts: "TTS",
+  stt: "STT",
+  webSearch: "Search",
+  webFetch: "Fetch",
+  video: "Video",
+  music: "Music",
+};
 
 interface ProviderCardProps {
   providerId: string;
@@ -47,6 +60,42 @@ interface ProviderCardProps {
   stats: ProviderStats;
   authType?: string;
   onToggle: (active: boolean) => void;
+}
+
+const DOT_COLORS: Record<string, string> = {
+  free: "bg-green-500",
+  "no-auth": "bg-stone-500",
+  oauth: "bg-blue-500",
+  apikey: "bg-amber-500",
+  compatible: "bg-orange-500",
+  "web-cookie": "bg-purple-500",
+  search: "bg-teal-500",
+  audio: "bg-rose-500",
+  local: "bg-emerald-500",
+  "upstream-proxy": "bg-indigo-500",
+  "cloud-agent": "bg-violet-500",
+};
+
+type ProviderMessageTranslator = ((key: string, values?: Record<string, unknown>) => string) & {
+  has?: (key: string) => boolean;
+};
+
+function providerText(
+  t: ProviderMessageTranslator,
+  key: string,
+  fallback: string,
+  values?: Record<string, unknown>
+): string {
+  if (typeof t.has === "function" && t.has(key)) {
+    return t(key, values);
+  }
+  if (values) {
+    return Object.entries(values).reduce(
+      (acc, [name, value]) => acc.replaceAll(`{${name}}`, String(value)),
+      fallback
+    );
+  }
+  return fallback;
 }
 
 function getStatusDisplay(
@@ -101,39 +150,6 @@ export default function ProviderCard({
   const tp = useTranslations("miniPlayground");
   const [testExpanded, setTestExpanded] = useState<boolean>(false);
 
-  const KIND_LABEL = useMemo<Record<string, string>>(
-    () => ({
-      llm: "Chat",
-      embedding: "Embed",
-      image: "Image",
-      imageToText: "I→T",
-      tts: "TTS",
-      stt: "STT",
-      webSearch: "Search",
-      webFetch: "Fetch",
-      video: "Video",
-      music: "Music",
-    }),
-    []
-  );
-
-  const DOT_COLORS = useMemo<Record<string, string>>(
-    () => ({
-      free: "bg-green-500",
-      "no-auth": "bg-stone-500",
-      oauth: "bg-blue-500",
-      apikey: "bg-amber-500",
-      compatible: "bg-orange-500",
-      "web-cookie": "bg-purple-500",
-      search: "bg-teal-500",
-      audio: "bg-rose-500",
-      local: "bg-emerald-500",
-      "upstream-proxy": "bg-indigo-500",
-      "cloud-agent": "bg-violet-500",
-    }),
-    []
-  );
-
   // Show the Test button for LLM providers (when serviceKinds includes "llm"
   // OR when the provider has no explicit serviceKinds but is a regular LLM provider
   // i.e. not a search/audio/cloud-agent type).
@@ -158,15 +174,27 @@ export default function ProviderCard({
   const isCompatible = isOpenAICompatibleProvider(providerId);
   const isCcCompatible = isClaudeCodeCompatibleProvider(providerId);
   const isAnthropicCompatible = isAnthropicCompatibleProvider(providerId) && !isCcCompatible;
-  const codexFastChip =
-    providerId === "codex" && stats.codexFastActive ? (
+  const codexServiceTierLabel =
+    stats.codexServiceTier === "flex"
+      ? providerText(t, "codexTierFlexLabel", "Flex")
+      : providerText(t, "codexTierFastLabel", "Fast");
+  const codexServiceTierChip =
+    providerId === "codex" && stats.codexServiceTier && stats.codexServiceTier !== "default" ? (
       <span
-        key="fast"
-        className="inline-flex items-center gap-0.5 rounded-full bg-sky-500/10 px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide text-sky-600 dark:text-sky-400"
-        title={t("codexFastTierActiveChip")}
+        key="codex-service-tier"
+        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide ${
+          stats.codexServiceTier === "flex"
+            ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
+            : "bg-sky-500/10 text-sky-600 dark:text-sky-400"
+        }`}
+        title={providerText(t, "codexServiceTierActive", "Codex {tier} service tier is active", {
+          tier: codexServiceTierLabel,
+        })}
       >
-        <span className="material-symbols-outlined text-[10px] leading-none">bolt</span>
-        {t("tierFast")}
+        <span className="material-symbols-outlined text-[10px] leading-none">
+          {stats.codexServiceTier === "flex" ? "speed" : "bolt"}
+        </span>
+        {codexServiceTierLabel}
       </span>
     ) : null;
 
@@ -311,7 +339,7 @@ export default function ProviderCard({
                       Number(stats.warning || 0),
                       stats.errorCode,
                       t,
-                      codexFastChip
+                      codexServiceTierChip
                     )}
                     {stats.expiryStatus === "expired" && (
                       <Badge variant="error" size="sm" dot>

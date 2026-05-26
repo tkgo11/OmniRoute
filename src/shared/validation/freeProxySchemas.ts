@@ -9,7 +9,11 @@ export const freeProxyListSchema = z.object({
     .transform((val) => (val ? val.split(",").filter(Boolean) : undefined))
     .pipe(z.array(freeProxySourceSchema).optional()),
   protocol: z.enum(["http", "https", "socks4", "socks5"]).optional(),
-  country: z.string().max(2).optional().transform((v) => v?.toUpperCase()),
+  country: z
+    .string()
+    .max(2)
+    .optional()
+    .transform((v) => v?.toUpperCase()),
   minQuality: z.coerce.number().int().min(0).max(100).optional(),
   limit: z.coerce.number().int().min(1).max(1000).optional(),
   offset: z.coerce.number().int().min(0).optional(),
@@ -36,7 +40,10 @@ export const vercelDeploySchema = z.object({
     .string()
     .min(20, "Vercel token looks too short")
     .max(200)
-    .regex(/^[A-Za-z0-9_-]+$/, "Vercel token must contain only alphanumeric, underscore, or hyphen"),
+    .regex(
+      /^[A-Za-z0-9_-]+$/,
+      "Vercel token must contain only alphanumeric, underscore, or hyphen"
+    ),
   projectName: z
     .string()
     .min(3)

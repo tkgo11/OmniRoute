@@ -66,6 +66,7 @@ const IGNORE_FROM_CODE = new Set([
   "NEXT_DIST_DIR",
   "NEXT_PHASE",
   "NEXT_RUNTIME",
+  "NODE_TEST_CONTEXT",
   "VITEST",
   // CI providers (set by the runner).
   "GITHUB_BASE_REF",

@@ -78,12 +78,26 @@ test("listFreeProxies filters by source", async () => {
   await reset();
 
   await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.0.0.1", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.0.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.upsertFreeProxy({
-    source: "proxifly", host: "10.0.0.2", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "proxifly",
+    host: "10.0.0.2",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
 
   const results = await freeProxiesDb.listFreeProxies({ sources: ["1proxy"] });
@@ -95,12 +109,26 @@ test("listFreeProxies filters by minQuality", async () => {
   await reset();
 
   await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.0.0.1", port: 8080, type: "http",
-    countryCode: null, qualityScore: 40, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.0.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: 40,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.0.0.2", port: 8080, type: "http",
-    countryCode: null, qualityScore: 90, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.0.0.2",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: 90,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
 
   const results = await freeProxiesDb.listFreeProxies({ minQuality: 70 });
@@ -112,12 +140,26 @@ test("listFreeProxies filters by onlyNotInPool", async () => {
   await reset();
 
   const r1 = await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.0.0.1", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.0.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.0.0.2", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.0.0.2",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.markFreeProxyInPool(r1.id, "pool-proxy-id-1");
 
@@ -130,8 +172,15 @@ test("markFreeProxyInPool sets inPool=true and stores poolProxyId", async () => 
   await reset();
 
   const { id } = await freeProxiesDb.upsertFreeProxy({
-    source: "iplocate", host: "5.6.7.8", port: 3128, type: "http",
-    countryCode: "DE", qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "iplocate",
+    host: "5.6.7.8",
+    port: 3128,
+    type: "http",
+    countryCode: "DE",
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
 
   await freeProxiesDb.markFreeProxyInPool(id, "pool-abc-123");
@@ -145,8 +194,15 @@ test("deleteFreeProxy removes record and returns true", async () => {
   await reset();
 
   const { id } = await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "9.9.9.9", port: 9090, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "9.9.9.9",
+    port: 9090,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
 
   const deleted = await freeProxiesDb.deleteFreeProxy(id);
@@ -167,16 +223,37 @@ test("clearFreeProxiesBySource removes only not-in-pool entries for that source"
   await reset();
 
   const { id: inPoolId } = await freeProxiesDb.upsertFreeProxy({
-    source: "proxifly", host: "11.0.0.1", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "proxifly",
+    host: "11.0.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.upsertFreeProxy({
-    source: "proxifly", host: "11.0.0.2", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "proxifly",
+    host: "11.0.0.2",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "11.0.0.3", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "11.0.0.3",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
 
   await freeProxiesDb.markFreeProxyInPool(inPoolId, "pool-xyz");
@@ -195,12 +272,26 @@ test("getFreeProxyStats returns correct totals", async () => {
   await reset();
 
   const { id: id1 } = await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "20.0.0.1", port: 8080, type: "http",
-    countryCode: "US", qualityScore: 60, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "20.0.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: "US",
+    qualityScore: 60,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.upsertFreeProxy({
-    source: "iplocate", host: "20.0.0.2", port: 8080, type: "http",
-    countryCode: "BR", qualityScore: 80, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "iplocate",
+    host: "20.0.0.2",
+    port: 8080,
+    type: "http",
+    countryCode: "BR",
+    qualityScore: 80,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.markFreeProxyInPool(id1, "pool-yyy");
 

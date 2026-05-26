@@ -25,7 +25,7 @@ export { parseModel };
 async function getCombinedModelAliases(): Promise<Record<string, unknown>> {
   const [dbAliases, settings] = await Promise.all([
     getModelAliases().catch(() => ({})),
-    getCachedSettings().catch(() => ({} as Record<string, unknown>)),
+    getCachedSettings().catch(() => ({}) as Record<string, unknown>),
   ]);
 
   const settingsAliases =

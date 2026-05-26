@@ -24,6 +24,7 @@ const { initTranslators } = await import("../../open-sse/translator/index.ts");
 const { clearInflight } = await import("../../open-sse/services/requestDedup.ts");
 const { setCliCompatProviders } = await import("../../open-sse/config/cliFingerprints.ts");
 const { BaseExecutor } = await import("../../open-sse/executors/base.ts");
+const { getCodexClientVersion } = await import("../../open-sse/config/codexClient.ts");
 const { GEMINI_CLI_VERSION, GEMINI_CLI_GOOGLE_API_NODE_CLIENT_VERSION } =
   await import("../../open-sse/services/geminiCliHeaders.ts");
 const { getCircuitBreaker, resetAllCircuitBreakers } =
@@ -655,7 +656,7 @@ test("chat pipeline applies Codex CLI fingerprint to OAuth responses requests", 
   assert.match(call.url, /chatgpt\.com\/backend-api\/codex\/responses$/);
   assert.equal(call.headers.Authorization, "Bearer codex-oauth-token");
   assert.equal(call.headers.Accept, "text/event-stream");
-  assert.equal(call.headers.Version, "0.132.0");
+  assert.equal(call.headers.Version, getCodexClientVersion());
   assert.equal(call.headers["Openai-Beta"], "responses=experimental");
   assert.equal(call.headers["X-Codex-Beta-Features"], "responses_websockets");
   assert.equal(call.headers["User-Agent"], "codex-cli/0.132.0 (Windows 10.0.26200; x64)");

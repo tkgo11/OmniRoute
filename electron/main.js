@@ -32,6 +32,7 @@ const path = require("path");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
+const { hasEncryptedCredentials } = require("./sqlite-inspection");
 
 // ── Single Instance Lock ───────────────────────────────────
 const gotTheLock = app.requestSingleInstanceLock();
@@ -156,34 +157,6 @@ function getPreferredEnvFilePath(env = process.env) {
   candidates.push(path.join(process.cwd(), ".env"));
 
   return candidates.find((filePath) => fs.existsSync(filePath)) || null;
-}
-
-function hasEncryptedCredentials(dbPath) {
-  if (!fs.existsSync(dbPath)) return false;
-
-  try {
-    const Database = require("better-sqlite3");
-    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
-    try {
-      const row = db
-        .prepare(
-          `SELECT 1
-             FROM provider_connections
-            WHERE access_token LIKE 'enc:v1:%'
-               OR refresh_token LIKE 'enc:v1:%'
-               OR api_key LIKE 'enc:v1:%'
-               OR id_token LIKE 'enc:v1:%'
-            LIMIT 1`
-        )
-        .get();
-      return !!row;
-    } finally {
-      db.close();
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Unable to inspect existing database at ${dbPath}: ${message}`);
-  }
 }
 
 // ── Auto-Updater Configuration ──────────────────────────────

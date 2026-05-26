@@ -13,9 +13,15 @@ vi.mock("next-intl", () => ({
 const lsStore: Record<string, string> = {};
 const localStorageMock = {
   getItem: (k: string) => lsStore[k] ?? null,
-  setItem: (k: string, v: string) => { lsStore[k] = v; },
-  removeItem: (k: string) => { delete lsStore[k]; },
-  clear: () => { for (const k in lsStore) delete lsStore[k]; },
+  setItem: (k: string, v: string) => {
+    lsStore[k] = v;
+  },
+  removeItem: (k: string) => {
+    delete lsStore[k];
+  },
+  clear: () => {
+    for (const k in lsStore) delete lsStore[k];
+  },
 };
 Object.defineProperty(globalThis, "localStorage", {
   value: localStorageMock,
@@ -25,9 +31,8 @@ Object.defineProperty(globalThis, "localStorage", {
 
 // ── Import component after mocks ─────────────────────────────────────────────
 
-const { default: FreePoolTab } = await import(
-  "../../src/app/(dashboard)/dashboard/settings/components/proxy/FreePoolTab"
-);
+const { default: FreePoolTab } =
+  await import("../../src/app/(dashboard)/dashboard/settings/components/proxy/FreePoolTab");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -52,7 +57,9 @@ function renderTab() {
   const el = document.createElement("div");
   document.body.appendChild(el);
   const root = createRoot(el);
-  act(() => { root.render(<FreePoolTab />); });
+  act(() => {
+    root.render(<FreePoolTab />);
+  });
   containers.push({ root, el });
   return el;
 }
@@ -105,7 +112,9 @@ describe("FreePoolTab source toggles", () => {
     await waitForCondition(() => el.querySelector("[role='group']") !== null);
     const bar = el.querySelector("[role='group']")!;
     const first = bar.querySelectorAll("button")[0];
-    act(() => { first.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    act(() => {
+      first.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     expect(first.getAttribute("aria-pressed")).toBe("false");
   });
 
@@ -114,9 +123,13 @@ describe("FreePoolTab source toggles", () => {
     await waitForCondition(() => el.querySelector("[role='group']") !== null);
     const bar = el.querySelector("[role='group']")!;
     const first = bar.querySelectorAll("button")[0];
-    act(() => { first.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    act(() => {
+      first.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     expect(first.getAttribute("aria-pressed")).toBe("false");
-    act(() => { first.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    act(() => {
+      first.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     expect(first.getAttribute("aria-pressed")).toBe("true");
   });
 
@@ -124,8 +137,12 @@ describe("FreePoolTab source toggles", () => {
     const el = renderTab();
     await waitForCondition(() => el.querySelector("[role='group']") !== null);
     const buttons = el.querySelector("[role='group']")!.querySelectorAll("button");
-    act(() => { buttons[0].dispatchEvent(new MouseEvent("click", { bubbles: true })); });
-    act(() => { buttons[2].dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    act(() => {
+      buttons[0].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    act(() => {
+      buttons[2].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     expect(buttons[0].getAttribute("aria-pressed")).toBe("false");
     expect(buttons[1].getAttribute("aria-pressed")).toBe("true"); // second still enabled
     expect(buttons[2].getAttribute("aria-pressed")).toBe("false");
@@ -135,7 +152,9 @@ describe("FreePoolTab source toggles", () => {
     const el = renderTab();
     await waitForCondition(() => el.querySelector("[role='group']") !== null);
     const first = el.querySelector("[role='group']")!.querySelectorAll("button")[0];
-    act(() => { first.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    act(() => {
+      first.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
     const stored = JSON.parse(localStorageMock.getItem("freePool.disabledSources") ?? "[]");
     expect(Array.isArray(stored)).toBe(true);
     expect(stored).toContain("1proxy");
@@ -166,9 +185,7 @@ describe("FreePoolTab data loading", () => {
     await waitForCondition(() =>
       mockFetch.mock.calls.some(([url]) => String(url).includes("/free-proxies"))
     );
-    expect(
-      mockFetch.mock.calls.some(([url]) => String(url).includes("/free-proxies"))
-    ).toBe(true);
+    expect(mockFetch.mock.calls.some(([url]) => String(url).includes("/free-proxies"))).toBe(true);
   });
 
   it("calls /api/settings/free-proxies/stats on mount", async () => {
@@ -197,7 +214,9 @@ describe("FreePoolTab data loading", () => {
 
     const bar = el.querySelector("[role='group']")!;
     const first = bar.querySelectorAll("button")[0]; // disable 1proxy
-    act(() => { first.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    act(() => {
+      first.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
 
     await waitForCondition(() => mockFetch.mock.calls.length > initialCallCount);
 

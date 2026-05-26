@@ -23,7 +23,7 @@ const {
   getTerminalBatches,
 } = await import("../../src/lib/localDb.ts");
 const { getDbInstance } = await import("../../src/lib/db/core.ts");
-const { initBatchProcessor, stopBatchProcessor, processPendingBatches } =
+const { initBatchProcessor, stopBatchProcessor, processPendingBatches, waitForAllBatches } =
   await import("../../open-sse/services/batchProcessor.ts");
 const batchesRoute = await import("../../src/app/api/v1/batches/route.ts");
 const batchByIdRoute = await import("../../src/app/api/v1/batches/[id]/route.ts");
@@ -31,6 +31,11 @@ const batchCancelRoute = await import("../../src/app/api/v1/batches/[id]/cancel/
 const filesRoute = await import("../../src/app/api/v1/files/route.ts");
 const fileByIdRoute = await import("../../src/app/api/v1/files/[id]/route.ts");
 const fileContentRoute = await import("../../src/app/api/v1/files/[id]/content/route.ts");
+
+test.afterEach(async () => {
+  stopBatchProcessor();
+  await waitForAllBatches();
+});
 
 test("Batch API and Processing", async () => {
   // 0. Setup environment, mock provider and API key
@@ -721,6 +726,32 @@ test("Files and batches routes expose explicit CORS preflight handlers", async (
   }
 });
 
+test("Batch by-id route exposes ownerless records to anonymous requests", async () => {
+  const file = createFile({
+    bytes: 2,
+    filename: "ownerless.jsonl",
+    purpose: "batch",
+    content: Buffer.from("{}"),
+    apiKeyId: null,
+  });
+  const batch = createBatch({
+    endpoint: "/v1/chat/completions",
+    completionWindow: "24h",
+    inputFileId: file.id,
+    apiKeyId: null,
+  });
+
+  const response = await batchByIdRoute.GET(
+    new Request(`http://localhost/api/v1/batches/${batch.id}`),
+    { params: Promise.resolve({ id: batch.id }) }
+  );
+  const body = await response.json();
+
+  assert.strictEqual(response.status, 200);
+  assert.strictEqual(body.id, batch.id);
+  assert.strictEqual(body.status, "validating");
+});
+
 test("Batch Cancel API", async () => {
   const apiKey = await createApiKey("Cancel Test Key", "test-machine");
 
@@ -781,8 +812,7 @@ test("Batch processor keeps cancelled status for in-flight batches", async () =>
       method: "POST",
       url: "/v1/chat/completions",
       body: {
-        // openai/gpt-4o-mini is now ambiguous (multi-provider); use o3-mini which resolves unambiguously to openai
-        model: "openai/o3-mini",
+        model: "openai/gpt-4.1",
         messages: [{ role: "user", content: "cancel me" }],
       },
     }),

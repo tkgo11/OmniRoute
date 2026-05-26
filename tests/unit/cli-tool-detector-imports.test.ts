@@ -19,10 +19,7 @@ const FILES_THAT_MUST_USE_TS_EXTENSION = [
   "src/lib/cli-helper/doctor/checks.ts",
 ];
 
-const DISALLOWED_PATTERNS = [
-  "cli-helper/tool-detector.js",
-  "cli-helper/doctor/checks.js",
-];
+const DISALLOWED_PATTERNS = ["cli-helper/tool-detector.js", "cli-helper/doctor/checks.js"];
 
 for (const file of FILES_THAT_MUST_USE_TS_EXTENSION) {
   test(`${file} imports cli-helper modules with .ts extension (not .js)`, () => {

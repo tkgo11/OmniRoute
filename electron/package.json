@@ -25,11 +25,10 @@
     "pack": "npm run prepare:bundle && electron-builder --dir"
   },
   "dependencies": {
-    "better-sqlite3": "^12.10.0",
     "electron-updater": "^6.8.6"
   },
   "devDependencies": {
-    "electron": "^41.2.0",
+    "electron": "^42.2.0",
     "electron-builder": "^26.11.1"
   },
   "overrides": {
@@ -52,6 +51,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "sqlite-inspection.js",
       "package.json",
       "node_modules/**/*"
     ],

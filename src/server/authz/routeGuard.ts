@@ -66,6 +66,7 @@ export const LOCAL_ONLY_MANAGE_SCOPE_BYPASS_PREFIXES: ReadonlyArray<string> = ["
 
 export const ALWAYS_PROTECTED_API_PATHS: ReadonlyArray<string> = [
   "/api/shutdown",
+  "/api/providers/health-autopilot/actions",
   "/api/settings/database",
 ];
 
@@ -80,6 +81,7 @@ export function isLoopbackHost(hostHeader: string | null): boolean {
     // IPv4 / hostname: strip optional :port
     host = hostHeader.split(":")[0];
   }
+  host = host.replace(/^::ffff:/i, "");
   return LOOPBACK_HOSTS.has(host.toLowerCase());
 }
 

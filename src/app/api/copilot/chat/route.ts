@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
 import { processCopilotChat } from "@/lib/copilot/engine";
-import type { CopilotRequest } from "@/lib/copilot/engine";
-import { buildErrorBody } from "@omniroute/open-sse/utils/error";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+import { sanitizeErrorMessage, buildErrorBody } from "@omniroute/open-sse/utils/error.ts";
 
 const copilotRequestSchema = z.object({
   messages: z
     .array(
       z.object({
         role: z.enum(["user", "assistant", "system"]),
-        content: z.string(),
+        content: z.string().min(1, "message content is required"),
       })
     )
     .min(1, "messages array is required"),
@@ -25,24 +26,21 @@ const copilotRequestSchema = z.object({
  * Body: { messages: [{ role: "user"|"assistant"|"system", content: string }] }
  */
 export async function POST(request: Request) {
-  try {
-    const raw = await request.json();
-    const parsed = copilotRequestSchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        buildErrorBody(400, parsed.error.issues[0]?.message ?? "Invalid request"),
-        { status: 400 }
-      );
-    }
-    const body = parsed.data as CopilotRequest;
+  const authError = await requireManagementAuth(request);
+  if (authError) return authError;
 
-    const response = await processCopilotChat(body);
+  try {
+    const rawBody = await request.json();
+    const validation = validateBody(copilotRequestSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json(buildErrorBody(400, validation.error), { status: 400 });
+    }
+
+    const response = await processCopilotChat(validation.data);
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
-    // buildErrorBody() routes through sanitizeErrorMessage(), which strips
-    // stack traces and absolute file paths. Hard rule #12.
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return NextResponse.json(buildErrorBody(500, message), { status: 500 });
+    const message = sanitizeErrorMessage(error);
+    return NextResponse.json(buildErrorBody(500, `Copilot error: ${message}`), { status: 500 });
   }
 }

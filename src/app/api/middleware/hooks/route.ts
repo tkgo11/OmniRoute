@@ -8,7 +8,12 @@ import {
 } from "@/lib/localDb";
 import { registerHook, getAllHooks } from "@/lib/middleware/registry";
 import type { HookConfig, CreateHookRequest } from "@/lib/middleware/types";
-import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
+
+const hookScopeSchema = z.union([
+  z.object({ type: z.literal("global") }),
+  z.object({ type: z.literal("combo"), comboId: z.string().trim().min(1) }),
+]);
 
 const createHookSchema = z.object({
   name: z
@@ -16,18 +21,16 @@ const createHookSchema = z.object({
     .trim()
     .min(1, "name is required")
     .regex(/^[a-zA-Z0-9_-]+$/, "name must contain only letters, numbers, hyphens, and underscores"),
+  description: z.string().optional().default(""),
+  priority: z.number().int().optional().default(200),
+  scope: hookScopeSchema.optional().default({ type: "global" }),
   code: z.string().trim().min(1, "code is required"),
-  description: z.string().optional(),
-  priority: z.number().int().optional(),
-  scope: z.unknown().optional(),
 });
 
 /**
  * GET /api/middleware/hooks — List all registered hooks
  */
 export async function GET(request: Request) {
-  const authError = await requireManagementAuth(request);
-  if (authError) return authError;
   try {
     const url = new URL(request.url);
     const hookName = url.searchParams.get("name");
@@ -69,18 +72,13 @@ export async function GET(request: Request) {
  * Body: { name, description?, priority?, scope?, code }
  */
 export async function POST(request: Request) {
-  const authError = await requireManagementAuth(request);
-  if (authError) return authError;
   try {
-    const raw = await request.json();
-    const parsed = createHookSchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-        { status: 400 }
-      );
+    const rawBody = await request.json();
+    const validation = validateBody(createHookSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const body = parsed.data as CreateHookRequest;
+    const body: CreateHookRequest = validation.data;
 
     // Check for duplicate
     const existing = getMiddlewareHook(body.name);

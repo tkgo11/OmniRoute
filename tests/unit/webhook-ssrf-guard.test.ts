@@ -127,8 +127,6 @@ describe("deliverWebhook — runtime SSRF guard returns error without firing fet
     );
     assert.equal(res.success, false);
     assert.equal(res.status, 0);
-    assert.ok(
-      typeof res.error === "string" && /private|blocked|local/i.test(res.error)
-    );
+    assert.ok(typeof res.error === "string" && /private|blocked|local/i.test(res.error));
   });
 });

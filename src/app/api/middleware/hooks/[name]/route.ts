@@ -8,24 +8,29 @@ import {
 } from "@/lib/localDb";
 import { registerHook, unregisterHook, updateHook } from "@/lib/middleware/registry";
 import type { HookConfig } from "@/lib/middleware/types";
-import { requireManagementAuth } from "@/lib/api/requireManagementAuth";
-
-const updateHookSchema = z.object({
-  description: z.string().optional(),
-  priority: z.number().int().optional(),
-  scope: z.unknown().optional(),
-  enabled: z.boolean().optional(),
-  code: z.string().optional(),
-});
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
 type RouteParams = { params: Promise<{ name: string }> };
+
+const hookScopeSchema = z.union([
+  z.object({ type: z.literal("global") }),
+  z.object({ type: z.literal("combo"), comboId: z.string().trim().min(1) }),
+]);
+
+const updateHookSchema = z
+  .object({
+    description: z.string().optional(),
+    priority: z.number().int().optional(),
+    scope: hookScopeSchema.optional(),
+    enabled: z.boolean().optional(),
+    code: z.string().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "At least one update field is required");
 
 /**
  * GET /api/middleware/hooks/[name] — Get a single hook details
  */
 export async function GET(request: Request, { params }: RouteParams) {
-  const authError = await requireManagementAuth(request);
-  if (authError) return authError;
   try {
     const { name } = await params;
     const url = new URL(request.url);
@@ -55,19 +60,14 @@ export async function GET(request: Request, { params }: RouteParams) {
  * Body: { description?, priority?, scope?, enabled?, code? }
  */
 export async function PUT(request: Request, { params }: RouteParams) {
-  const authError = await requireManagementAuth(request);
-  if (authError) return authError;
   try {
     const { name } = await params;
-    const raw = await request.json();
-    const parsed = updateHookSchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-        { status: 400 }
-      );
+    const rawBody = await request.json();
+    const validation = validateBody(updateHookSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const body = parsed.data;
+    const body = validation.data;
 
     const existing = getMiddlewareHook(name);
     if (!existing) {
@@ -78,7 +78,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const updates: Partial<HookConfig> = {};
     if (body.description !== undefined) updates.description = body.description;
     if (body.priority !== undefined) updates.priority = body.priority;
-    if (body.scope !== undefined) updates.scope = body.scope as HookConfig["scope"];
+    if (body.scope !== undefined) updates.scope = body.scope;
     if (body.enabled !== undefined) updates.enabled = body.enabled;
     if (body.code !== undefined) updates.code = body.code;
 
@@ -106,8 +106,6 @@ export async function PUT(request: Request, { params }: RouteParams) {
  * DELETE /api/middleware/hooks/[name] — Delete a hook
  */
 export async function DELETE(request: Request, { params }: RouteParams) {
-  const authError = await requireManagementAuth(request);
-  if (authError) return authError;
   try {
     const { name } = await params;
 

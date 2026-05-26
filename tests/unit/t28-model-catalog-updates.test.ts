@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { getModelInfoCore } from "../../open-sse/services/model.ts";
 import { REGISTRY } from "../../open-sse/config/providerRegistry.ts";
-import { getStaticModelsForProvider } from "../../src/app/api/providers/[id]/models/route.ts";
+import { getStaticModelsForProvider } from "../../src/lib/providers/staticModels.ts";
 
 test("T28: gemini-cli catalog includes preview models, gemini provides a static fallback", () => {
   // Gemini (AI Studio) carries a small hardcoded fallback for first-run UX when no

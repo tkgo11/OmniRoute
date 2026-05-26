@@ -19,10 +19,7 @@ export function loadDisabledSources(): Set<SourceId> {
 
 export function saveDisabledSources(disabled: Set<SourceId>): void {
   try {
-    globalThis.localStorage?.setItem(
-      FREE_POOL_DISABLED_SOURCES_KEY,
-      JSON.stringify([...disabled])
-    );
+    globalThis.localStorage?.setItem(FREE_POOL_DISABLED_SOURCES_KEY, JSON.stringify([...disabled]));
   } catch {}
 }
 

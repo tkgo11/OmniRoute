@@ -15,6 +15,8 @@ import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { homedir, platform } from "node:os";
 import updateNotifier from "update-notifier";
+import { isNativeBinaryCompatible } from "../scripts/build/native-binary-compat.mjs";
+import { getNodeRuntimeSupport, getNodeRuntimeWarning } from "./nodeRuntimeSupport.mjs";
 
 // Register tsx so dynamic imports of .ts source files (referenced as .js per
 // TypeScript conventions) resolve correctly. The build never emits .js for

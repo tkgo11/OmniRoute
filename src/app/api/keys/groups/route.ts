@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAllKeyGroups, createKeyGroup, getKeyGroup } from "@/lib/localDb";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
 const createKeyGroupSchema = z.object({
   name: z.string().trim().min(1, "name is required"),
-  description: z.string().optional(),
+  description: z.string().optional().default(""),
 });
 
 /**
@@ -25,15 +26,12 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const raw = await request.json();
-    const parsed = createKeyGroupSchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-        { status: 400 }
-      );
+    const rawBody = await request.json();
+    const validation = validateBody(createKeyGroupSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const group = createKeyGroup(parsed.data.name, parsed.data.description || "");
+    const group = createKeyGroup(validation.data.name, validation.data.description);
     return NextResponse.json({ group }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: "Failed to create group" }, { status: 500 });

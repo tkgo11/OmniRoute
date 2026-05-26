@@ -8,18 +8,21 @@ import {
   getRelayLogs,
   getRelayUsage,
 } from "@/lib/db/relayProxies";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
-const patchRelayTokenSchema = z.object({
-  enabled: z.boolean().optional(),
-  name: z.string().optional(),
-  description: z.string().optional(),
-  comboId: z.string().optional(),
-  allowedModels: z.array(z.string()).optional(),
-  maxTokensPerRequest: z.number().int().nonnegative().optional(),
-  maxRequestsPerMinute: z.number().int().nonnegative().optional(),
-  maxRequestsPerDay: z.number().int().nonnegative().optional(),
-  maxCostPerDay: z.number().nonnegative().optional(),
-});
+const relayTokenPatchSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    name: z.string().trim().min(1).optional(),
+    description: z.string().optional(),
+    comboId: z.string().trim().min(1).optional(),
+    allowedModels: z.array(z.string().trim().min(1)).optional(),
+    maxTokensPerRequest: z.number().int().positive().optional(),
+    maxRequestsPerMinute: z.number().int().positive().optional(),
+    maxRequestsPerDay: z.number().int().positive().optional(),
+    maxCostPerDay: z.number().nonnegative().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "At least one update field is required");
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,15 +44,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const raw = await request.json();
-  const parsed = patchRelayTokenSchema.safeParse(raw);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-      { status: 400 }
-    );
+  const rawBody = await request.json();
+  const validation = validateBody(relayTokenPatchSchema, rawBody);
+  if (isValidationFailure(validation)) {
+    return NextResponse.json({ error: validation.error }, { status: 400 });
   }
-  const body = parsed.data;
+  const body = validation.data;
 
   if (body.enabled !== undefined) {
     const token = toggleRelayToken(id, body.enabled);

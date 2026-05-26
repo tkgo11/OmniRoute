@@ -65,9 +65,7 @@ async function restListCombos() {
 }
 
 async function restComboStats(period) {
-  const res = await apiFetch(
-    `/api/context/analytics?period=${encodeURIComponent(period ?? "7d")}`
-  );
+  const res = await apiFetch(`/api/context/analytics?period=${encodeURIComponent(period ?? "7d")}`);
   if (!res.ok) {
     process.stderr.write(`Error: ${res.status}\n`);
     process.exit(1);
@@ -170,11 +168,9 @@ export function registerCompression(program) {
 
   const combos = cmp.command("combos").description(t("compression.combos.description"));
   combos.command("list").action(async (opts, cmd) => {
-    const data = await mcpCall(
-      "omniroute_list_compression_combos",
-      {},
-      async () => ({ combos: await restListCombos() })
-    );
+    const data = await mcpCall("omniroute_list_compression_combos", {}, async () => ({
+      combos: await restListCombos(),
+    }));
     emit(data.combos ?? data, cmd.optsWithGlobals());
   });
   combos

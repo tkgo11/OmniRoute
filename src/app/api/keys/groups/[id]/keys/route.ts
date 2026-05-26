@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { addKeyToGroup, removeKeyFromGroup, getGroupMembers, getKeyGroup } from "@/lib/localDb";
-
-const addKeyToGroupSchema = z.object({
-  keyId: z.string().min(1, "keyId is required"),
-});
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
 type RouteParams = { params: Promise<{ id: string }> };
+
+const addKeyToGroupSchema = z.object({
+  keyId: z.string().trim().min(1, "keyId is required"),
+});
 
 /**
  * GET /api/keys/groups/[id]/keys — List API keys in a group
@@ -33,15 +34,12 @@ export async function POST(request: Request, { params }: RouteParams) {
     const group = getKeyGroup(id);
     if (!group) return NextResponse.json({ error: "Group not found" }, { status: 404 });
 
-    const raw = await request.json();
-    const parsed = addKeyToGroupSchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-        { status: 400 }
-      );
+    const rawBody = await request.json();
+    const validation = validateBody(addKeyToGroupSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const added = addKeyToGroup(parsed.data.keyId, id);
+    const added = addKeyToGroup(validation.data.keyId, id);
     if (!added) {
       return NextResponse.json({ error: "Failed to add key" }, { status: 500 });
     }

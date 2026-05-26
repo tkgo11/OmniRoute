@@ -23,6 +23,7 @@ import {
 import { getClaudeCodeCompatibleRequestDefaults } from "@/lib/providers/requestDefaults";
 import { remapToolNamesInRequest } from "../services/claudeCodeToolRemapper.ts";
 import { obfuscateInBody } from "../services/claudeCodeObfuscation.ts";
+import { sanitizeResponsesInputItems } from "../services/responsesInputSanitizer.ts";
 import { applySystemTransformPipeline, PROVIDER_CLAUDE } from "../services/systemTransforms.ts";
 import {
   fixToolPairs,
@@ -233,6 +234,7 @@ export function sanitizeReasoningEffortForProvider(
     b.reasoning && typeof b.reasoning === "object" && !Array.isArray(b.reasoning)
       ? (b.reasoning as Record<string, unknown>)
       : null;
+  const hasTopLevelReasoningEffort = Object.prototype.hasOwnProperty.call(b, "reasoning_effort");
   const effort = b.reasoning_effort ?? reasoning?.effort;
   if (effort === undefined) return body;
   const effortStr = typeof effort === "string" ? effort.toLowerCase() : "";
@@ -243,7 +245,10 @@ export function sanitizeReasoningEffortForProvider(
       "REASONING_SANITIZE",
       `${provider}/${modelStr}: downgraded reasoning_effort xhigh → high`
     );
-    const next: Record<string, unknown> = { ...b, reasoning_effort: "high" };
+    const next: Record<string, unknown> = { ...b };
+    if (hasTopLevelReasoningEffort) {
+      next.reasoning_effort = "high";
+    }
     if (reasoning) {
       next.reasoning = { ...reasoning, effort: "high" };
     }
@@ -406,6 +411,10 @@ export class BaseExecutor {
     // like tool descriptions to avoid upstream validation failures.
     if (body && typeof body === "object" && !Array.isArray(body)) {
       const cloned = { ...body } as Record<string, unknown>;
+
+      if (Array.isArray(cloned.input)) {
+        cloned.input = sanitizeResponsesInputItems(cloned.input, false);
+      }
 
       if (Array.isArray(cloned.tools)) {
         cloned.tools = cloned.tools.map((tool: unknown) => {

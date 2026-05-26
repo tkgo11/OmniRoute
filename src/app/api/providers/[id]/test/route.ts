@@ -243,7 +243,7 @@ async function getProviderRuntimeStatus(connection: any) {
     provider === "qoder" && connection?.authType !== "apikey" && hasQoderToken(connection);
   if (isQoderOauthWithToken) {
     const message =
-      "Qoder OAuth/Local CLI mode is selected but a Personal Access Token is stored on this connection. Switch this connection to API Key auth to use the PAT directly.";
+      "Qoder OAuth/Local CLI mode is selected but a Personal Access Token is stored on this connection. Switch this connection to API Key auth instead.";
     return {
       installed: false,
       runnable: false,

@@ -63,11 +63,7 @@ export default function VercelRelayModal({ isOpen, onClose, onDeployed }: Vercel
             </span>
             {t("vercelRelayModalTitle")}
           </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="text-text-muted hover:text-text"
-          >
+          <button onClick={onClose} aria-label="Close" className="text-text-muted hover:text-text">
             <span className="material-symbols-outlined" aria-hidden="true">
               close
             </span>

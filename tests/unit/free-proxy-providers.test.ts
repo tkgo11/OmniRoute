@@ -13,9 +13,8 @@ process.env.FREE_PROXY_PROXIFLY_ENABLED = "false";
 process.env.FREE_PROXY_IPLOCATE_ENABLED = "false";
 
 const core = await import("../../src/lib/db/core.ts");
-const { getProvider, getEnabledProviders, getAllProviders } = await import(
-  "../../src/lib/freeProxyProviders/index.ts"
-);
+const { getProvider, getEnabledProviders, getAllProviders } =
+  await import("../../src/lib/freeProxyProviders/index.ts");
 
 async function reset() {
   core.resetDbInstance();
@@ -106,8 +105,15 @@ test("OneproxyProvider.list delegates to listFreeProxiesBySource", async () => {
 
   const freeProxiesDb = await import("../../src/lib/db/freeProxies.ts");
   await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "99.0.0.1", port: 8080, type: "http",
-    countryCode: "US", qualityScore: 70, latencyMs: 100, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "99.0.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: "US",
+    qualityScore: 70,
+    latencyMs: 100,
+    anonymity: null,
+    lastValidated: null,
   });
 
   const p = getProvider("1proxy")!;

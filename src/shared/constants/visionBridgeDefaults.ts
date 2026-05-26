@@ -24,7 +24,9 @@ export function isVisionBridgeForcedModel(model: string | null | undefined): boo
   const lowerModel = model.trim().toLowerCase();
   if (FORCED_VISION_BRIDGE_MODELS.has(lowerModel)) return true;
   // Also check just the model name (after /) for backward compatibility
-  const normalizedModel = lowerModel.includes("/") ? lowerModel.split("/").pop() || lowerModel : lowerModel;
+  const normalizedModel = lowerModel.includes("/")
+    ? lowerModel.split("/").pop() || lowerModel
+    : lowerModel;
   return FORCED_VISION_BRIDGE_MODELS.has(normalizedModel);
 }
 

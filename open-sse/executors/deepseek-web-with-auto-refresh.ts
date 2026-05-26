@@ -74,6 +74,9 @@ export class DeepSeekWebWithAutoRefreshExecutor extends DeepSeekWebExecutor {
         console.error("[DeepSeek-WEB-AUTO-REFRESH] Auto-refresh failed:", error);
       }
     }, this.refreshConfig.sessionRefreshInterval);
+    if (typeof this.refreshTimer === "object" && "unref" in this.refreshTimer) {
+      (this.refreshTimer as { unref?: () => void }).unref?.();
+    }
   }
 
   private setCurrentUserToken(userToken: string | null): void {

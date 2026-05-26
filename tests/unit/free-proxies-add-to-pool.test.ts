@@ -13,12 +13,10 @@ delete process.env.OMNIROUTE_API_KEY;
 
 const core = await import("../../src/lib/db/core.ts");
 const freeProxiesDb = await import("../../src/lib/db/freeProxies.ts");
-const addToPoolRoute = await import(
-  "../../src/app/api/settings/free-proxies/[id]/add-to-pool/route.ts"
-);
-const bulkAddRoute = await import(
-  "../../src/app/api/settings/free-proxies/bulk-add-to-pool/route.ts"
-);
+const addToPoolRoute =
+  await import("../../src/app/api/settings/free-proxies/[id]/add-to-pool/route.ts");
+const bulkAddRoute =
+  await import("../../src/app/api/settings/free-proxies/bulk-add-to-pool/route.ts");
 
 async function reset() {
   core.resetDbInstance();
@@ -141,12 +139,26 @@ test("bulk-add-to-pool returns 400 for invalid JSON body", async () => {
 
 test("bulk-add-to-pool: alreadyInPool proxies counted as succeeded", async () => {
   const { id: id1 } = await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.0.0.1", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.0.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   const { id: id2 } = await freeProxiesDb.upsertFreeProxy({
-    source: "proxifly", host: "10.0.0.2", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "proxifly",
+    host: "10.0.0.2",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.markFreeProxyInPool(id1, "pool-1");
   await freeProxiesDb.markFreeProxyInPool(id2, "pool-2");
@@ -160,9 +172,7 @@ test("bulk-add-to-pool: alreadyInPool proxies counted as succeeded", async () =>
 });
 
 test("bulk-add-to-pool: not-found ids counted as failed", async () => {
-  const res = await bulkAddRoute.POST(
-    makeBulkReq([randomUUID(), randomUUID()])
-  );
+  const res = await bulkAddRoute.POST(makeBulkReq([randomUUID(), randomUUID()]));
   const body = await res.json();
   assert.equal(body.succeeded, 0);
   assert.equal(body.failed, 2);
@@ -175,12 +185,26 @@ test("bulk-add-to-pool: not-found ids counted as failed", async () => {
 test("bulk-add-to-pool: response shape with mix of already-in-pool and connectivity failures", async () => {
   // 2 already in pool (succeed)
   const { id: p1 } = await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.1.0.1", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.1.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   const { id: p2 } = await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.1.0.2", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.1.0.2",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   await freeProxiesDb.markFreeProxyInPool(p1, "pool-aaa");
   await freeProxiesDb.markFreeProxyInPool(p2, "pool-bbb");
@@ -189,8 +213,15 @@ test("bulk-add-to-pool: response shape with mix of already-in-pool and connectiv
   const failProxies = await Promise.all(
     [1, 2, 3].map((port) =>
       freeProxiesDb.upsertFreeProxy({
-        source: "1proxy", host: "127.0.0.1", port, type: "http",
-        countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+        source: "1proxy",
+        host: "127.0.0.1",
+        port,
+        type: "http",
+        countryCode: null,
+        qualityScore: null,
+        latencyMs: null,
+        anonymity: null,
+        lastValidated: null,
       })
     )
   );
@@ -220,12 +251,21 @@ test("bulk-add-to-pool respects 100-item limit (Zod validation)", async () => {
 
 test("add-to-pool happy path: connectivity succeeds → proxy created → marked in pool", async () => {
   const { id } = await freeProxiesDb.upsertFreeProxy({
-    source: "1proxy", host: "10.5.0.1", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "1proxy",
+    host: "10.5.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
 
   addToPoolRoute._setConnectivityTesterForTests(async () => ({
-    success: true, latencyMs: 5, publicIp: "1.2.3.4",
+    success: true,
+    latencyMs: 5,
+    publicIp: "1.2.3.4",
   }));
 
   const res = await addToPoolRoute.POST(makeReq(), { params: Promise.resolve({ id }) });
@@ -242,12 +282,26 @@ test("add-to-pool happy path: connectivity succeeds → proxy created → marked
 
 test("bulk-add-to-pool happy path: connectivity succeeds → proxies created and marked in pool", async () => {
   const p1 = await freeProxiesDb.upsertFreeProxy({
-    source: "proxifly", host: "10.6.0.1", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "proxifly",
+    host: "10.6.0.1",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
   const p2 = await freeProxiesDb.upsertFreeProxy({
-    source: "iplocate", host: "10.6.0.2", port: 8080, type: "http",
-    countryCode: null, qualityScore: null, latencyMs: null, anonymity: null, lastValidated: null,
+    source: "iplocate",
+    host: "10.6.0.2",
+    port: 8080,
+    type: "http",
+    countryCode: null,
+    qualityScore: null,
+    latencyMs: null,
+    anonymity: null,
+    lastValidated: null,
   });
 
   bulkAddRoute._setQuickTesterForTests(async () => ({ ok: true, latencyMs: 3 }));

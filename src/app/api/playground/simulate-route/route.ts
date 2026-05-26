@@ -7,29 +7,24 @@
 
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getCombos } from "@/lib/db/combos";
+import { getAllCombos } from "@/lib/db/combos";
 import { getProviderConnections } from "@/lib/db/providers";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
-const simulateRequestSchema = z.object({
-  comboId: z.string().optional(),
-  combo: z
-    .object({
-      name: z.string(),
-      strategy: z.string(),
-      targets: z.array(
-        z.object({
-          provider: z.string(),
-          model: z.string(),
-          weight: z.number().optional(),
-        })
-      ),
-    })
-    .optional(),
-  promptTokens: z.number().int().nonnegative().optional(),
-  taskType: z.string().optional(),
-});
-
-type SimulateRequest = z.infer<typeof simulateRequestSchema>;
+interface SimulateRequest {
+  /** Combo ID to simulate */
+  comboId?: string;
+  /** Combo config inline (mutually exclusive with comboId) */
+  combo?: {
+    name: string;
+    strategy: string;
+    targets: Array<{ provider: string; model: string; weight?: number }>;
+  };
+  /** Estimated prompt tokens */
+  promptTokens?: number;
+  /** Task type hint */
+  taskType?: string;
+}
 
 interface TargetSimulation {
   provider: string;
@@ -53,6 +48,31 @@ interface SimulateResponse {
   warnings: string[];
   errors: string[];
 }
+
+const simulateRequestSchema = z
+  .object({
+    comboId: z.string().trim().min(1).optional(),
+    combo: z
+      .object({
+        name: z.string().trim().min(1),
+        strategy: z.string().trim().min(1),
+        targets: z
+          .array(
+            z.object({
+              provider: z.string().trim().min(1),
+              model: z.string().trim().min(1),
+              weight: z.number().optional(),
+            })
+          )
+          .min(1),
+      })
+      .optional(),
+    promptTokens: z.number().int().positive().optional(),
+    taskType: z.string().optional(),
+  })
+  .refine((value) => Boolean(value.comboId) !== Boolean(value.combo), {
+    message: "Exactly one of comboId or combo is required",
+  });
 
 function estimateCost(model: string, promptTokens: number): number {
   // Rough cost estimates per model family
@@ -103,22 +123,19 @@ function estimateContextWindow(model: string): number {
   const modelLower = model.toLowerCase();
   if (modelLower.includes("128k") || modelLower.includes("128")) return 128000;
   if (modelLower.includes("200k") || modelLower.includes("200")) return 200000;
-  if (modelLower.includes("1m")) return 1000000;
-  if (modelLower.includes("2m")) return 2000000;
+  if (modelLower.includes("1m") || modelLower.includes("1m")) return 1000000;
+  if (modelLower.includes("2m") || modelLower.includes("2m")) return 2000000;
   return 128000;
 }
 
 export async function POST(request: Request) {
   try {
-    const raw = await request.json();
-    const parsed = simulateRequestSchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-        { status: 400 }
-      );
+    const rawBody = await request.json();
+    const validation = validateBody(simulateRequestSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const body: SimulateRequest = parsed.data;
+    const body: SimulateRequest = validation.data;
     const warnings: string[] = [];
     const errors: string[] = [];
     let comboInfo: {
@@ -129,7 +146,7 @@ export async function POST(request: Request) {
 
     // Resolve combo
     if (body.comboId) {
-      const combos = (await getCombos()) as any[];
+      const combos = (await getAllCombos()) as any[];
       const combo = combos.find((c) => c.id === body.comboId || c.name === body.comboId);
       if (!combo) {
         errors.push(`Combo "${body.comboId}" not found.`);

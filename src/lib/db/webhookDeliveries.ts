@@ -47,8 +47,7 @@ export function insertDelivery(opts: {
   // Sanitize the error before persistence so raw stack traces, hostnames or
   // upstream-internal messages never enter the audit log. The audit log is
   // read back via the deliveries API and rendered in the dashboard.
-  const sanitizedError =
-    opts.error != null ? sanitizeErrorMessage(opts.error) || null : null;
+  const sanitizedError = opts.error != null ? sanitizeErrorMessage(opts.error) || null : null;
   db.transaction(() => {
     insertStmt.run(
       opts.webhookId,
@@ -78,15 +77,10 @@ export function getDeliveries(webhookId: string, limit: number): WebhookDelivery
 }
 
 /** Fetch one delivery including `payload_snapshot` — used for opt-in detail view. */
-export function getDeliveryDetail(
-  webhookId: string,
-  deliveryId: number
-): WebhookDelivery | null {
+export function getDeliveryDetail(webhookId: string, deliveryId: number): WebhookDelivery | null {
   const db = getDbInstance();
   const row = db
-    .prepare(
-      `SELECT * FROM webhook_deliveries WHERE webhook_id = ? AND id = ? LIMIT 1`
-    )
+    .prepare(`SELECT * FROM webhook_deliveries WHERE webhook_id = ? AND id = ? LIMIT 1`)
     .get(webhookId, deliveryId);
   return (row as WebhookDelivery | undefined) ?? null;
 }

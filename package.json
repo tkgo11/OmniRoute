@@ -121,7 +121,7 @@
     "test:coverage": "cross-env DISABLE_SQLITE_AUTO_BACKUP=true c8 --output-dir coverage --exclude=tests/** --exclude=**/*.test.* --reporter=text-summary --reporter=html --reporter=json-summary --reporter=lcov --check-coverage --statements 75 --lines 75 --functions 75 --branches 70 node --max-old-space-size=8192 --import tsx --test --test-force-exit --test-concurrency=8 tests/unit/*.test.ts",
     "test:coverage:legacy": "c8 --output-dir coverage --exclude=open-sse --check-coverage --lines 50 --functions 50 --branches 50 node --import tsx --test tests/unit/*.test.ts",
     "coverage:report": "c8 report --output-dir coverage --exclude=tests/** --exclude=**/*.test.* --reporter=text --reporter=text-summary --reporter=html --reporter=json-summary --reporter=lcov",
-    "coverage:summary": "node scripts/check/test-report-summary.mjs --input coverage/coverage-summary.json --output coverage/coverage-report.md --threshold 60",
+    "coverage:summary": "node scripts/check/test-report-summary.mjs --input coverage/coverage-summary.json --output coverage/coverage-report.md",
     "check:pr-test-policy": "node scripts/check/check-pr-test-policy.mjs",
     "coverage:report:legacy": "c8 report --output-dir coverage --exclude=open-sse --reporter=text --reporter=text-summary",
     "test:all": "npm run test:unit && npm run test:vitest && npm run test:ecosystem && npm run test:e2e",
@@ -135,6 +135,7 @@
     "build:cli-api": "node --import tsx/esm scripts/cli/generate-api-commands.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1045.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

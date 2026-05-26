@@ -83,8 +83,7 @@ export default function FreePoolTab() {
     setSyncing(true);
     try {
       const enabledSources = ALL_SOURCE_IDS.filter((s) => !disabledSources.has(s));
-      const body =
-        enabledSources.length < ALL_SOURCE_IDS.length ? { sources: enabledSources } : {};
+      const body = enabledSources.length < ALL_SOURCE_IDS.length ? { sources: enabledSources } : {};
       await fetch("/api/settings/free-proxies/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -196,11 +195,7 @@ export default function FreePoolTab() {
       {selected.size > 0 && (
         <div className="flex items-center gap-2 p-2 bg-primary/10 rounded border border-primary/20">
           <span className="text-xs">{selected.size} selected</span>
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => handleBulkAdd(Array.from(selected))}
-          >
+          <Button size="sm" variant="primary" onClick={() => handleBulkAdd(Array.from(selected))}>
             ⊕ Add selected to pool
           </Button>
           {bulkProgress && <span className="text-xs text-text-muted">{bulkProgress}</span>}

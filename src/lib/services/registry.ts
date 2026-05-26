@@ -26,9 +26,7 @@ async function stopAll(): Promise<void> {
   // DB status writes inside ServiceSupervisor.stop() flush. Otherwise the
   // event loop drains immediately on SIGTERM and rows are stuck in "running"
   // or "starting" until the next boot.
-  await Promise.allSettled(
-    Array.from(supervisors.values()).map((supervisor) => supervisor.stop())
-  );
+  await Promise.allSettled(Array.from(supervisors.values()).map((supervisor) => supervisor.stop()));
 }
 
 function handleShutdownSignal(signal: NodeJS.Signals): void {

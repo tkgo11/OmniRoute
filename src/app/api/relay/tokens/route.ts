@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getRelayTokens, createRelayToken } from "@/lib/db/relayProxies";
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
-const createRelayTokenSchema = z.object({
-  name: z.string().min(1, "name is required"),
+const relayTokenInputSchema = z.object({
+  name: z.string().trim().min(1, "name is required"),
   description: z.string().optional(),
-  comboId: z.string().optional(),
-  allowedModels: z.array(z.string()).optional(),
-  maxTokensPerRequest: z.number().int().nonnegative().optional(),
-  maxRequestsPerMinute: z.number().int().nonnegative().optional(),
-  maxRequestsPerDay: z.number().int().nonnegative().optional(),
+  comboId: z.string().trim().min(1).optional(),
+  allowedModels: z.array(z.string().trim().min(1)).optional(),
+  maxTokensPerRequest: z.number().int().positive().optional(),
+  maxRequestsPerMinute: z.number().int().positive().optional(),
+  maxRequestsPerDay: z.number().int().positive().optional(),
   maxCostPerDay: z.number().nonnegative().optional(),
-  expiresAt: z.union([z.string(), z.number()]).optional(),
+  expiresAt: z.number().int().positive().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -40,27 +41,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const raw = await request.json();
-    const parsed = createRelayTokenSchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-        { status: 400 }
-      );
+    const rawBody = await request.json();
+    const validation = validateBody(relayTokenInputSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const body = parsed.data;
-    const token = createRelayToken({
-      name: body.name,
-      description: body.description,
-      comboId: body.comboId,
-      allowedModels: body.allowedModels,
-      maxTokensPerRequest: body.maxTokensPerRequest,
-      maxRequestsPerMinute: body.maxRequestsPerMinute,
-      maxRequestsPerDay: body.maxRequestsPerDay,
-      maxCostPerDay: body.maxCostPerDay,
-      expiresAt: body.expiresAt,
-      metadata: body.metadata,
-    });
+    const token = createRelayToken(validation.data);
 
     return NextResponse.json({
       id: token.id,

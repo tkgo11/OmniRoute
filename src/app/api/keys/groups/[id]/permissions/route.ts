@@ -6,16 +6,15 @@ import {
   getGroupPermissions,
   getKeyGroup,
 } from "@/lib/localDb";
-
-const addPermissionSchema = z.object({
-  modelPattern: z.string().min(1, "modelPattern is required"),
-  accessType: z.enum(["allow", "deny"], {
-    message: "accessType must be 'allow' or 'deny'",
-  }),
-  provider: z.string().optional(),
-});
+import { isValidationFailure, validateBody } from "@/shared/validation/helpers";
 
 type RouteParams = { params: Promise<{ id: string }> };
+
+const addGroupPermissionSchema = z.object({
+  modelPattern: z.string().trim().min(1, "modelPattern is required"),
+  accessType: z.enum(["allow", "deny"]),
+  provider: z.string().trim().min(1).optional(),
+});
 
 /**
  * GET /api/keys/groups/[id]/permissions — List permissions for a group
@@ -43,16 +42,18 @@ export async function POST(request: Request, { params }: RouteParams) {
     const group = getKeyGroup(id);
     if (!group) return NextResponse.json({ error: "Group not found" }, { status: 404 });
 
-    const raw = await request.json();
-    const parsed = addPermissionSchema.safeParse(raw);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
-        { status: 400 }
-      );
+    const rawBody = await request.json();
+    const validation = validateBody(addGroupPermissionSchema, rawBody);
+    if (isValidationFailure(validation)) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
     }
-    const { modelPattern, accessType, provider } = parsed.data;
-    const permission = addGroupPermission(id, modelPattern, accessType, provider);
+
+    const permission = addGroupPermission(
+      id,
+      validation.data.modelPattern,
+      validation.data.accessType,
+      validation.data.provider
+    );
     return NextResponse.json({ permission }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: "Failed to add permission" }, { status: 500 });

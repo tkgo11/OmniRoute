@@ -59,10 +59,7 @@ export function _resetConnectivityTesterForTests(): void {
   _connectivityTester = testProxyConnectivity;
 }
 
-export async function POST(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const authError = await requireManagementAuth(request);
   if (authError) return authError;
 

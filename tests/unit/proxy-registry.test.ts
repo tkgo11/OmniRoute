@@ -295,9 +295,7 @@ test("createProxyRegistrySchema accepts type:vercel and source:vercel-relay (sch
   // Note: We validate the schema directly using the worktree's absolute path because
   // tests run with CWD=/OmniRoute, so `@/` aliases resolve to the main branch's src/.
   // The assertion below confirms the worktree's schema accepts the new enum values.
-  const { createProxyRegistrySchema } = await import(
-    "../../src/shared/validation/schemas.ts"
-  );
+  const { createProxyRegistrySchema } = await import("../../src/shared/validation/schemas.ts");
 
   const result = createProxyRegistrySchema.safeParse({
     name: "Vercel Relay Test",
@@ -308,7 +306,10 @@ test("createProxyRegistrySchema accepts type:vercel and source:vercel-relay (sch
     notes: JSON.stringify({ relayAuth: "secret-relay-token" }),
   });
 
-  assert.ok(result.success, `schema should accept type:vercel — errors: ${JSON.stringify("error" in result ? result.error : null)}`);
+  assert.ok(
+    result.success,
+    `schema should accept type:vercel — errors: ${JSON.stringify("error" in result ? result.error : null)}`
+  );
   if (result.success) {
     assert.equal(result.data.type, "vercel");
     assert.equal(result.data.source, "vercel-relay");

@@ -1,6 +1,9 @@
 import { FORMATS } from "./formats.ts";
 import { ensureToolCallIds, fixMissingToolResponses } from "./helpers/toolCallHelper.ts";
-import { NON_ANTHROPIC_THINKING_PLACEHOLDER, prepareClaudeRequest } from "./helpers/claudeHelper.ts";
+import {
+  NON_ANTHROPIC_THINKING_PLACEHOLDER,
+  prepareClaudeRequest,
+} from "./helpers/claudeHelper.ts";
 import { filterToOpenAIFormat } from "./helpers/openaiHelper.ts";
 import {
   coerceToolSchemas,
@@ -293,11 +296,16 @@ export function translateRequest(
       // Detect tool calls in either format
       const hasToolCalls = Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0;
       // Claude format: tool_use lives in content[] blocks, not msg.tool_calls
-      const hasToolUseBlocks = !hasToolCalls && Array.isArray(msg.content) &&
+      const hasToolUseBlocks =
+        !hasToolCalls &&
+        Array.isArray(msg.content) &&
         msg.content.some((b) => b?.type === "tool_use");
 
       const shouldReplayReasoningOnly =
-        !hasToolCalls && !hasToolUseBlocks && canReplayReasoningOnly && hasReasoningContentField(msg);
+        !hasToolCalls &&
+        !hasToolUseBlocks &&
+        canReplayReasoningOnly &&
+        hasReasoningContentField(msg);
 
       if (!hasToolCalls && !hasToolUseBlocks && !shouldReplayReasoningOnly) continue;
 
