@@ -2,7 +2,7 @@ FROM node:24-trixie-slim AS builder
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends libsecret-1-0 ca-certificates python3 make g++ \
+  && apt-get install -y --no-install-recommends libsecret-1-0 ca-certificates \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
@@ -82,4 +82,3 @@ RUN apt-get update \
 
 # Install CLI tools globally. Separate layer from apt for better cache reuse.
 RUN npm install -g --no-audit --no-fund @openai/codex @anthropic-ai/claude-code droid openclaw@latest
-
