@@ -31,11 +31,13 @@ export function getGeminiCliHeaders(
   accessToken: string,
   accept: "application/json" | "*/*"
 ): Record<string, string> {
+  // Order matches the native Gemini CLI fingerprint: Authorization is sent
+  // last so the request is indistinguishable from the official client.
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${accessToken}`,
     "User-Agent": geminiCliUserAgent(model),
     "X-Goog-Api-Client": geminiCliApiClientHeader(),
     Accept: accept,
+    Authorization: `Bearer ${accessToken}`,
   };
 }

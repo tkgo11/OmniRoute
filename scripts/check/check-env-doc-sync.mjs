@@ -108,6 +108,9 @@ const IGNORE_FROM_CODE = new Set([
   "OMNIROUTE_DOCTOR_LIVENESS_URL",
   "OMNIROUTE_PROVIDER_CATALOG_PATH",
   "OMNIROUTE_PROVIDER_TEST_MODEL",
+  // Test-only opt-out: instructs bin/omniroute.mjs to skip auto-loading the
+  // repository .env so isolation tests get a deterministic environment.
+  "OMNIROUTE_CLI_SKIP_REPO_ENV",
   // Source typo / placeholder.
   "OMNIROUT",
   // Static config alias path (the canonical var is OMNIROUTE_PAYLOAD_RULES_PATH).

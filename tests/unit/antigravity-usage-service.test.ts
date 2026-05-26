@@ -12,6 +12,13 @@
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
 
+// IMPORTANT: load usage.ts up-front so the proxyFetch patch in
+// `open-sse/index.ts` (which runs at module evaluation) finishes BEFORE we
+// install fetch mocks. Otherwise the first test races the patch and ends up
+// hitting the real network instead of the mock.
+const usageModule = await import("../../open-sse/services/usage.ts");
+const { getUsageForProvider } = usageModule;
+
 describe("getUsageForProvider (antigravity in usage.ts)", () => {
   const connectionBase = {
     id: "test-conn",
@@ -37,9 +44,6 @@ describe("getUsageForProvider (antigravity in usage.ts)", () => {
     }));
 
     try {
-      const usageModule = await import("../../open-sse/services/usage.ts");
-      const { getUsageForProvider } = usageModule;
-
       const result = await getUsageForProvider(connectionBase, { forceRefresh: true });
       assert.ok(result, "should return a result");
       assert.ok("quotas" in result, "should have quotas");

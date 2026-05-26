@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { processCopilotChat } from "@/lib/copilot/engine";
 import type { CopilotRequest } from "@/lib/copilot/engine";
+
+const copilotRequestSchema = z.object({
+  messages: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant", "system"]),
+        content: z.string(),
+      })
+    )
+    .min(1, "messages array is required"),
+});
 
 /**
  * POST /api/copilot/chat
@@ -9,15 +21,19 @@ import type { CopilotRequest } from "@/lib/copilot/engine";
  * Accepts user messages about OmniRoute configuration and returns
  * tool-based responses + AI guidance.
  *
- * Body: { messages: [{ role: "user"|"assistant", content: string }] }
+ * Body: { messages: [{ role: "user"|"assistant"|"system", content: string }] }
  */
 export async function POST(request: Request) {
   try {
-    const body: CopilotRequest = await request.json();
-
-    if (!body.messages || !Array.isArray(body.messages) || body.messages.length === 0) {
-      return NextResponse.json({ error: "messages array is required" }, { status: 400 });
+    const raw = await request.json();
+    const parsed = copilotRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
+        { status: 400 }
+      );
     }
+    const body = parsed.data as CopilotRequest;
 
     const response = await processCopilotChat(body);
 

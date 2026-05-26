@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   getAllMiddlewareHooks,
   createMiddlewareHook,
@@ -7,6 +8,18 @@ import {
 } from "@/lib/localDb";
 import { registerHook, getAllHooks } from "@/lib/middleware/registry";
 import type { HookConfig, CreateHookRequest } from "@/lib/middleware/types";
+
+const createHookSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "name is required")
+    .regex(/^[a-zA-Z0-9_-]+$/, "name must contain only letters, numbers, hyphens, and underscores"),
+  code: z.string().trim().min(1, "code is required"),
+  description: z.string().optional(),
+  priority: z.number().int().optional(),
+  scope: z.unknown().optional(),
+});
 
 /**
  * GET /api/middleware/hooks — List all registered hooks
@@ -54,23 +67,15 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
-    const body: CreateHookRequest = await request.json();
-
-    if (!body.name || !body.name.trim()) {
-      return NextResponse.json({ error: "name is required" }, { status: 400 });
-    }
-
-    if (!body.code || !body.code.trim()) {
-      return NextResponse.json({ error: "code is required" }, { status: 400 });
-    }
-
-    // Validate name format
-    if (!/^[a-zA-Z0-9_-]+$/.test(body.name)) {
+    const raw = await request.json();
+    const parsed = createHookSchema.safeParse(raw);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "name must contain only letters, numbers, hyphens, and underscores" },
+        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
         { status: 400 }
       );
     }
+    const body = parsed.data as CreateHookRequest;
 
     // Check for duplicate
     const existing = getMiddlewareHook(body.name);

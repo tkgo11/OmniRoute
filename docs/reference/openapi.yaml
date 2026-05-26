@@ -2404,6 +2404,7 @@ paths:
     post:
       tags: [System]
       summary: Shutdown the application
+      x-always-protected: true
       responses:
         "200":
           description: Shutdown initiated

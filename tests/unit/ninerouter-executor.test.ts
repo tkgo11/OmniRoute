@@ -50,10 +50,18 @@ function makeFakeSupervisor(state: "running" | "stopped" | "error" | "starting" 
 const originalFetch = globalThis.fetch;
 const originalEnv = { ...process.env };
 
+function restoreEnv(key: string) {
+  if (originalEnv[key] === undefined) {
+    delete process.env[key];
+  } else {
+    process.env[key] = originalEnv[key];
+  }
+}
+
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  process.env.NINEROUTER_HOST = originalEnv.NINEROUTER_HOST;
-  process.env.NINEROUTER_PORT = originalEnv.NINEROUTER_PORT;
+  restoreEnv("NINEROUTER_HOST");
+  restoreEnv("NINEROUTER_PORT");
   unregisterSupervisor("9router");
 });
 

@@ -1,4 +1,4 @@
-import { BaseExecutor } from "./base.ts";
+import { BaseExecutor, mergeUpstreamExtraHeaders } from "./base.ts";
 import { randomUUID } from "crypto";
 import { PROVIDERS, OAUTH_ENDPOINTS } from "../config/constants.ts";
 import { getGeminiCliHeaders } from "../services/geminiCliHeaders.ts";
@@ -484,13 +484,16 @@ export class GeminiCLIExecutor extends BaseExecutor {
       const tokens = await response.json();
       log?.info?.("TOKEN", "Gemini CLI refreshed");
 
-      return {
+      const refreshed: Record<string, unknown> = {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || credentials.refreshToken,
         expiresIn: tokens.expires_in,
         projectId: credentials.projectId,
-        providerSpecificData: credentials.providerSpecificData,
       };
+      if (credentials.providerSpecificData !== undefined) {
+        refreshed.providerSpecificData = credentials.providerSpecificData;
+      }
+      return refreshed as never;
     } catch (error) {
       log?.error?.("TOKEN", `Gemini CLI refresh error: ${error.message}`);
       return null;

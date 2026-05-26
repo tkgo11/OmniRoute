@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import {
   getMiddlewareHook,
   updateMiddlewareHook,
@@ -7,6 +8,14 @@ import {
 } from "@/lib/localDb";
 import { registerHook, unregisterHook, updateHook } from "@/lib/middleware/registry";
 import type { HookConfig } from "@/lib/middleware/types";
+
+const updateHookSchema = z.object({
+  description: z.string().optional(),
+  priority: z.number().int().optional(),
+  scope: z.unknown().optional(),
+  enabled: z.boolean().optional(),
+  code: z.string().optional(),
+});
 
 type RouteParams = { params: Promise<{ name: string }> };
 
@@ -45,7 +54,15 @@ export async function GET(request: Request, { params }: RouteParams) {
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
     const { name } = await params;
-    const body = await request.json();
+    const raw = await request.json();
+    const parsed = updateHookSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
+        { status: 400 }
+      );
+    }
+    const body = parsed.data;
 
     const existing = getMiddlewareHook(name);
     if (!existing) {
@@ -56,7 +73,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const updates: Partial<HookConfig> = {};
     if (body.description !== undefined) updates.description = body.description;
     if (body.priority !== undefined) updates.priority = body.priority;
-    if (body.scope !== undefined) updates.scope = body.scope;
+    if (body.scope !== undefined) updates.scope = body.scope as HookConfig["scope"];
     if (body.enabled !== undefined) updates.enabled = body.enabled;
     if (body.code !== undefined) updates.code = body.code;
 

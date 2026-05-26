@@ -6,23 +6,30 @@
  */
 
 import { NextResponse } from "next/server";
-import { getAllCombos } from "@/lib/db/combos";
+import { z } from "zod";
+import { getCombos } from "@/lib/db/combos";
 import { getProviderConnections } from "@/lib/db/providers";
 
-interface SimulateRequest {
-  /** Combo ID to simulate */
-  comboId?: string;
-  /** Combo config inline (mutually exclusive with comboId) */
-  combo?: {
-    name: string;
-    strategy: string;
-    targets: Array<{ provider: string; model: string; weight?: number }>;
-  };
-  /** Estimated prompt tokens */
-  promptTokens?: number;
-  /** Task type hint */
-  taskType?: string;
-}
+const simulateRequestSchema = z.object({
+  comboId: z.string().optional(),
+  combo: z
+    .object({
+      name: z.string(),
+      strategy: z.string(),
+      targets: z.array(
+        z.object({
+          provider: z.string(),
+          model: z.string(),
+          weight: z.number().optional(),
+        })
+      ),
+    })
+    .optional(),
+  promptTokens: z.number().int().nonnegative().optional(),
+  taskType: z.string().optional(),
+});
+
+type SimulateRequest = z.infer<typeof simulateRequestSchema>;
 
 interface TargetSimulation {
   provider: string;
@@ -103,7 +110,15 @@ function estimateContextWindow(model: string): number {
 
 export async function POST(request: Request) {
   try {
-    const body: SimulateRequest = await request.json();
+    const raw = await request.json();
+    const parsed = simulateRequestSchema.safeParse(raw);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid request" },
+        { status: 400 }
+      );
+    }
+    const body: SimulateRequest = parsed.data;
     const warnings: string[] = [];
     const errors: string[] = [];
     let comboInfo: {
@@ -114,7 +129,7 @@ export async function POST(request: Request) {
 
     // Resolve combo
     if (body.comboId) {
-      const combos = (await getAllCombos()) as any[];
+      const combos = (await getCombos()) as any[];
       const combo = combos.find((c) => c.id === body.comboId || c.name === body.comboId);
       if (!combo) {
         errors.push(`Combo "${body.comboId}" not found.`);
