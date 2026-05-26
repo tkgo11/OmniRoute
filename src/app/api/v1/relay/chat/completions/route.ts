@@ -23,6 +23,46 @@ function sanitizeForensicHeader(value: string | null, max = 256): string {
   return value.replace(/[\r\n]+/g, " ").slice(0, max);
 }
 
+// ── In-memory per-(token,IP) rate limit ─────────────────────────────────────
+// Defence-in-depth on top of the DB-backed per-token limit: a leaked relay
+// token redistributed across N IPs would otherwise consume the per-token
+// quota in parallel. This second gate caps a *single* IP using a token to
+// `RELAY_IP_PER_MINUTE` req/min — legit clients keep working, distributed
+// abuse of one token hits the wall fast.
+//
+// In-memory by design: cheap, no DB round-trip, no extra migration. Per
+// instance only — if you run multiple relay replicas behind a load balancer,
+// the effective ceiling is `RELAY_IP_PER_MINUTE * replicas`, which is still
+// orders of magnitude tighter than no gate.
+const RELAY_IP_PER_MINUTE = Number(process.env.RELAY_IP_PER_MINUTE || "30");
+const ipBuckets = new Map<string, { count: number; windowStart: number }>();
+
+function checkIpRateLimit(tokenId: string, ip: string): { allowed: boolean; resetIn: number } {
+  if (!Number.isFinite(RELAY_IP_PER_MINUTE) || RELAY_IP_PER_MINUTE <= 0) {
+    return { allowed: true, resetIn: 0 };
+  }
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = Math.floor(now / 60) * 60;
+  const key = tokenId + "|" + ip;
+  const bucket = ipBuckets.get(key);
+  if (!bucket || bucket.windowStart !== windowStart) {
+    ipBuckets.set(key, { count: 1, windowStart });
+    if (ipBuckets.size > 10_000) {
+      // Bound memory: drop the oldest half when the table grows past 10k.
+      const cutoff = windowStart - 60;
+      for (const [k, b] of ipBuckets) {
+        if (b.windowStart < cutoff) ipBuckets.delete(k);
+      }
+    }
+    return { allowed: true, resetIn: 60 - (now % 60) };
+  }
+  if (bucket.count >= RELAY_IP_PER_MINUTE) {
+    return { allowed: false, resetIn: 60 - (now % 60) };
+  }
+  bucket.count++;
+  return { allowed: true, resetIn: 60 - (now % 60) };
+}
+
 const injectionGuard = createInjectionGuard();
 
 export async function OPTIONS() {
@@ -86,7 +126,28 @@ export async function POST(request: Request) {
       });
     }
 
-    // 2. Rate limit check
+    // 2a. Per-(token,IP) gate — bounds the blast radius of a leaked token.
+    const ipCheck = checkIpRateLimit(token.id, clientIp);
+    if (!ipCheck.allowed) {
+      recordRelayUsage(token.id, {
+        requestId: request.headers.get("x-request-id") || undefined,
+        status: "rate_limited",
+        statusCode: 429,
+        latencyMs: Date.now() - startTime,
+        clientIp,
+        userAgent,
+      });
+      return new Response(JSON.stringify(buildErrorBody(429, "Per-IP rate limit exceeded")), {
+        status: 429,
+        headers: {
+          ...JSON_CORS_HEADERS,
+          "Retry-After": String(ipCheck.resetIn),
+          "X-RateLimit-Scope": "ip",
+        },
+      });
+    }
+
+    // 2b. Per-token rate limit check
     const rateCheck = checkRateLimit(token.id);
     if (!rateCheck.allowed) {
       recordRelayUsage(token.id, {

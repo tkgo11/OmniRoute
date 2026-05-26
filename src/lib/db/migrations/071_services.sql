@@ -1,4 +1,4 @@
--- Migration 068: Extend version_manager for embedded services (9router + CLIProxyAPI)
+-- Migration 071: Extend version_manager for embedded services (9router + CLIProxyAPI)
 --
 -- Adds 3 columns to support the embedded-services feature (v3.8.4):
 --   logs_buffer_path  — path to ring-buffer log file on disk (optional)
