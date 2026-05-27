@@ -186,10 +186,14 @@ type ComboLogger = {
   debug: (...args: unknown[]) => void;
 };
 
+export type SingleModelTarget =
+  | (ResolvedComboTarget & { modelAbortSignal?: AbortSignal | null })
+  | { modelAbortSignal: AbortSignal };
+
 type HandleSingleModel = (
   body: Record<string, unknown>,
   modelStr: string,
-  target?: ResolvedComboTarget
+  target?: SingleModelTarget
 ) => Promise<Response>;
 
 type IsModelAvailable = (
@@ -2440,7 +2444,7 @@ export async function handleComboChat({
   const clientRequestedStream = body?.stream === true;
   // Wrap handleSingleModel to inject context caching tag on response (#401)
   const handleSingleModelWrapped = combo.context_cache_protection
-    ? async (b: Record<string, unknown>, modelStr: string, target?: ResolvedComboTarget) => {
+    ? async (b: Record<string, unknown>, modelStr: string, target?: SingleModelTarget) => {
         const res = await handleSingleModel(b, modelStr, target);
         if (!res.ok) return res;
 
@@ -2549,8 +2553,26 @@ export async function handleComboChat({
         });
 
         const transformedStream = res.body.pipeThrough(transform);
-        // Add model info as response header for clients that support it
-        const headers = new Headers(res.headers);
+        const headers = new Headers();
+        if (res.headers) {
+          try {
+            res.headers.forEach((v, k) => {
+              headers.set(k, v);
+            });
+          } catch {
+            try {
+              for (const [k, v] of res.headers as unknown as Iterable<[string, string]>) {
+                headers.set(k, v);
+              }
+            } catch {
+              try {
+                for (const [k, v] of Object.entries(res.headers)) {
+                  headers.set(k, v == null ? "" : String(v));
+                }
+              } catch {}
+            }
+          }
+        }
         headers.set("X-OmniRoute-Model", modelStr);
         return new Response(transformedStream, {
           status: res.status,
@@ -2569,11 +2591,15 @@ export async function handleComboChat({
   // (b) abort the inner request so its upstream fetch is cancelled and downstream
   // cooldown/breaker/usage mutations stop — preventing "ghost" state mutations
   // that diverge from the routing decision the operator sees.
-  const handleSingleModelWithTimeout = async (b, modelStr, target?) => {
+  const handleSingleModelWithTimeout = async (
+    b: Record<string, unknown>,
+    modelStr: string,
+    target?: SingleModelTarget
+  ): Promise<Response> => {
     const timeoutController = new AbortController();
-    let timeoutId;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     let timedOut = false;
-    const timeoutPromise = new Promise((resolve) => {
+    const timeoutPromise = new Promise<Response>((resolve) => {
       timeoutId = setTimeout(() => {
         timedOut = true;
         log.warn(
@@ -3295,7 +3321,7 @@ export async function handleComboChat({
               combo.name,
               modelStr,
               provider,
-              target.connectionId
+              target.connectionId ?? undefined
             );
           }
           // Context-relay intentionally splits responsibilities:

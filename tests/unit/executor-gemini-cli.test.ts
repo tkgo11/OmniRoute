@@ -101,7 +101,7 @@ test("GeminiCLIExecutor.refreshProject caches loadCodeAssist lookups and transfo
   const originalFetch = globalThis.fetch;
   let calls = 0;
 
-  globalThis.fetch = async (url) => {
+  (globalThis as any).fetch = async (url) => {
     calls += 1;
     assert.match(String(url), /loadCodeAssist$/);
     return new Response(JSON.stringify({ cloudaicompanionProject: "fresh-project-id" }), {
@@ -144,7 +144,7 @@ test("GeminiCLIExecutor.transformRequest preserves thinking config for supported
   const executor = new GeminiCLIExecutor();
   const originalFetch = globalThis.fetch;
 
-  globalThis.fetch = async () =>
+  (globalThis as any).fetch = async () =>
     new Response(JSON.stringify({ cloudaicompanionProject: "fresh-project-id" }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -187,7 +187,7 @@ test("GeminiCLIExecutor.transformRequest does not mutate the caller request body
     },
   };
 
-  globalThis.fetch = async () =>
+  (globalThis as any).fetch = async () =>
     new Response(JSON.stringify({ cloudaicompanionProject: "fresh-project-id" }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
@@ -217,7 +217,7 @@ test("GeminiCLIExecutor.transformRequest does not mutate the caller request body
 test("GeminiCLIExecutor.refreshProject returns null on failed loadCodeAssist responses", async () => {
   const executor = new GeminiCLIExecutor();
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response("forbidden", { status: 403 });
+  (globalThis as any).fetch = async () => new Response("forbidden", { status: 403 });
 
   try {
     assert.equal(await executor.refreshProject("access-token-2"), null);
@@ -231,7 +231,7 @@ test("GeminiCLIExecutor.refreshProject onboards a managed project when loadCodeA
   const originalFetch = globalThis.fetch;
   const calls: CapturedFetchCall[] = [];
 
-  globalThis.fetch = async (url, init: RequestInit = {}) => {
+  (globalThis as any).fetch = async (url, init: RequestInit = {}) => {
     const body = parseInitBody(init);
     calls.push({ url: String(url), body });
 
@@ -283,7 +283,7 @@ test("GeminiCLIExecutor.onboardManagedProject retries until completion", async (
   const originalFetch = globalThis.fetch;
   let attempts = 0;
 
-  globalThis.fetch = async (url) => {
+  (globalThis as any).fetch = async (url) => {
     attempts += 1;
     assert.match(String(url), /onboardUser$/);
     return new Response(
@@ -316,7 +316,7 @@ test("GeminiCLIExecutor.onboardManagedProject retries until completion", async (
 test("GeminiCLIExecutor.refreshCredentials exchanges refresh tokens via Google OAuth", async () => {
   const executor = new GeminiCLIExecutor();
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url) => {
+  (globalThis as any).fetch = async (url) => {
     assert.match(String(url), /oauth2\.googleapis\.com\/token$/);
     return new Response(
       JSON.stringify({
@@ -349,7 +349,7 @@ test("GeminiCLIExecutor.execute applies CLI fingerprint to the final Cloud Code 
   const originalFetch = globalThis.fetch;
   const calls: Array<{ url: string; headers: Record<string, string>; body: string }> = [];
 
-  globalThis.fetch = async (url, init: RequestInit = {}) => {
+  (globalThis as any).fetch = async (url, init: RequestInit = {}) => {
     const requestUrl = String(url);
     calls.push({
       url: requestUrl,
@@ -385,7 +385,7 @@ test("GeminiCLIExecutor.execute applies CLI fingerprint to the final Cloud Code 
     assert.ok(finalCall);
 
     const finalBody = JSON.parse(finalCall.body);
-    assert.deepEqual(Object.keys(finalBody), ["model", "project", "user_prompt_id", "request"]);
+    assert.deepEqual(Object.keys(finalBody), ["model", "user_prompt_id", "request", "project"]);
     assert.deepEqual(Object.keys(finalCall.headers), [
       "Content-Type",
       "User-Agent",

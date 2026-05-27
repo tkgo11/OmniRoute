@@ -168,7 +168,7 @@ function wrapRequestWithExtraSignal(request: any, extraSignal: AbortSignal | nul
   return new Proxy(request, {
     get(target, prop, receiver) {
       if (prop === "signal") return mergedSignal;
-      const value = Reflect.get(target, prop, receiver);
+      const value = target[prop];
       return typeof value === "function" ? value.bind(target) : value;
     },
   });
@@ -332,7 +332,7 @@ export async function handleChat(request: any, clientRawRequest: any = null) {
     >,
     model: modelStr,
     combo: undefined,
-    apiKeyInfo: apiKeyInfo as Record<string, unknown> | undefined,
+    apiKeyInfo: apiKeyInfo as unknown as Record<string, unknown> | undefined,
     log,
   });
 
@@ -709,18 +709,7 @@ async function handleSingleModelChat(
     return handleComboChat({
       body,
       combo: redirectCombo,
-      handleSingleModel: (
-        b: any,
-        m: string,
-        target?: {
-          connectionId?: string | null;
-          executionKey?: string | null;
-          stepId?: string | null;
-          failoverBeforeRetry?: boolean;
-          trafficType?: "production" | "shadow";
-          modelAbortSignal?: AbortSignal | null;
-        }
-      ) =>
+      handleSingleModel: (b: any, m: string, target?: any) =>
         handleSingleModelChat(
           b,
           m,
@@ -848,7 +837,6 @@ async function handleSingleModelChat(
               {
                 sessionKey: runtimeOptions.sessionAffinityKey ?? runtimeOptions.sessionId ?? null,
                 excludeConnectionIds: Array.from(excludedConnectionIds),
-                sessionKey: runtimeOptions.sessionId ?? null,
                 sessionAffinityTtlMs: Number.isFinite(
                   Number((runtimeOptions.cachedSettings as any)?.codexSessionAffinityTtlMs)
                 )

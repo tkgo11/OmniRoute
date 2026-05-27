@@ -787,7 +787,7 @@ function createBodyTimeoutError(timeoutMs: number): Error {
 function readStreamChunkWithTimeout(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   timeoutMs: number
-): Promise<ReadableStreamReadResult<Uint8Array>> {
+): Promise<{ done: boolean; value?: Uint8Array }> {
   if (timeoutMs <= 0) return reader.read();
 
   return new Promise((resolve, reject) => {
@@ -1396,7 +1396,7 @@ function isCopilotClient(
   if (isMatch(userAgent)) return true;
 
   if (headers instanceof Headers) {
-    for (const [key, value] of headers) {
+    for (const [key, value] of headers as unknown as Iterable<[string, string]>) {
       if (isMatch(key) || isMatch(value)) return true;
     }
   } else if (headers && typeof headers === "object") {
@@ -2705,7 +2705,10 @@ export async function handleChatCore({
         }
         if (comboConfig) {
           const allCombosData = await getCombosCached();
-          const targets = resolveComboTargets(comboConfig, allCombosData);
+          const targets = resolveComboTargets(
+            comboConfig as unknown as { name: string; models: unknown[] },
+            allCombosData as unknown as { name: string; models: unknown[] }[]
+          );
           const limits = targets.map((t: { modelStr?: string }) => {
             const parsed = parseModel(t.modelStr);
             return getTokenLimit(parsed.provider, parsed.model);
@@ -3580,7 +3583,13 @@ export async function handleChatCore({
                 stage: "sending_to_provider",
               });
               const execCreds = getExecutionCredentials();
-              const res = await executeWithUpstreamStartTimeout({
+              const res = await executeWithUpstreamStartTimeout<{
+                response: Response;
+                url: string;
+                headers: Record<string, string>;
+                transformedBody: unknown;
+                _executionCredentials?: unknown;
+              }>({
                 executor,
                 provider,
                 model: modelToCall,
@@ -3773,7 +3782,28 @@ export async function handleChatCore({
         }
 
         const statusText = rawResult.response.statusText;
-        const headers = new Headers(rawResult.response.headers);
+        const rawHeaders = rawResult.response.headers;
+        const headersObj: Record<string, string> = {};
+        if (rawHeaders) {
+          if (typeof rawHeaders.forEach === "function") {
+            try {
+              rawHeaders.forEach((v: string, k: string) => {
+                headersObj[k] = v;
+              });
+            } catch {
+              try {
+                for (const [k, v] of rawHeaders as unknown as Iterable<[string, string]>) {
+                  headersObj[k] = v;
+                }
+              } catch {
+                Object.assign(headersObj, rawHeaders);
+              }
+            }
+          } else {
+            Object.assign(headersObj, rawHeaders);
+          }
+        }
+        const headers = new Headers(headersObj);
         stripStaleForwardingHeaders(headers);
         const contentType = (headers.get("content-type") || "").toLowerCase();
         const payload = await readNonStreamingResponseBody(
@@ -4142,8 +4172,8 @@ export async function handleChatCore({
       message = details.message;
       retryAfterMs = details.retryAfterMs;
       upstreamErrorBody = details.responseBody;
-      upstreamErrorCode = details.errorCode;
-      upstreamErrorType = details.errorType;
+      upstreamErrorCode = details.errorCode as string | undefined;
+      upstreamErrorType = details.errorType as string | undefined;
     }
 
     // T06/T10/T36: classify provider errors and persist terminal account states.

@@ -22,7 +22,7 @@ test("T28: antigravity static catalog exposes client-visible Gemini preview IDs"
   const staticIds = (getStaticModelsForProvider("antigravity") || []).map((m) => m.id);
 
   assert.ok(staticIds.includes("gemini-3-pro-preview"));
-  assert.ok(staticIds.includes("gemini-3.1-pro-low"));
+  assert.ok(!staticIds.includes("gemini-3.1-pro-low"));
   assert.ok(staticIds.includes("gemini-3-flash-preview"));
   assert.ok(!staticIds.includes("gemini-3-pro-high"));
   assert.ok(!staticIds.includes("gemini-3.1-pro-high"));
