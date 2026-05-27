@@ -2,14 +2,6 @@
 
 ## [Unreleased]
 
-### 🔧 Bug Fixes
-
-- **validation:** add Poolside specialty validator (direct `/chat/completions` probe — Poolside has no `/v1/models` endpoint and returns 401 for unknown routes, which the generic `/models` flow misread as "invalid API key") (#2723)
-- **validation:** add NVIDIA NIM specialty validator and harden `normalizeBaseUrl` against non-string `providerSpecificData.baseUrl` — fixes the `e.startsWith is not a function` TypeError that surfaced after minification (#2463)
-- **cli:** `omniroute compression *` falls back to direct REST endpoints (`/api/settings/compression`, `/api/context/combos`, `/api/context/analytics`) when `/api/mcp/tools/call` returns 404; normalize `none → off` / `hybrid → stacked` engine aliases (#2688)
-- **cli:** import `cli-helper/tool-detector` and `cli-helper/doctor/checks` with the explicit `.ts` extension that tsx resolves directly, so the published npm package (which ships only the `.ts` source) no longer crashes with `Cannot find module '…tool-detector.js'` (#2509)
-- **authz:** make the DB feature-flag override authoritative over `process.env` for `OMNIROUTE_ALLOW_PRIVATE_PROVIDER_URLS`, so toggling "Allow Private Provider URLs" in the Electron dashboard takes effect without restarting the spawned server (#2575)
-
 ## [3.8.4] — 2026-05-26
 
 ### 🔒 Security
@@ -42,10 +34,20 @@
 - **feat(webhooks):** 3-step configuration wizard for Slack, Telegram, Discord, and Custom webhook destinations, with reorganized React components (#2703 — thanks @diegosouzapw)
 - **feat(openapi):** comprehensive API endpoints content audit with 100% schema coverage, authz security tiers, and full i18n localization support (#2701 — thanks @diegosouzapw)
 - **feat(providers):** add BluesMinds, FreeModel.dev, and FreeAIAPIKey to the provider catalog (#2709 — thanks @oyi77)
+- **feat(routing/providers):** broaden routing, provider capabilities, and dashboard views — adds AWS Bedrock provider executor, combo scoring inspector, route explainability, reset-aware combo routing, and improves UI views for quota and resilience (#2750 — thanks @JxnLexn)
+- **feat(batch-fixes):** clean batch UI, Docker compose base profile, and support for parallel testing execution (#2761 — thanks @diegosouzapw)
 - **chore(deps):** added ws + @types/ws for WebSocket support, recharts ^3.8.1 for analytics charts
 
 ### 🔧 Bug Fixes
 
+- **validation:** add Poolside specialty validator (direct `/chat/completions` probe — Poolside has no `/v1/models` endpoint and returns 401 for unknown routes, which the generic `/models` flow misread as "invalid API key") (#2723)
+- **validation:** add NVIDIA NIM specialty validator and harden `normalizeBaseUrl` against non-string `providerSpecificData.baseUrl` — fixes the `e.startsWith is not a function` TypeError that surfaced after minification (#2463)
+- **cli:** `omniroute compression *` falls back to direct REST endpoints (`/api/settings/compression`, `/api/context/combos`, `/api/context/analytics`) when `/api/mcp/tools/call` returns 404; normalize `none → off` / `hybrid → stacked` engine aliases (#2688)
+- **cli:** import `cli-helper/tool-detector` and `cli-helper/doctor/checks` with the explicit `.ts` extension that tsx resolves directly, so the published npm package (which ships only the `.ts` source) no longer crashes with `Cannot find module '…tool-detector.js'` (#2509)
+- **authz:** make the DB feature-flag override authoritative over `process.env` for `OMNIROUTE_ALLOW_PRIVATE_PROVIDER_URLS`, so toggling "Allow Private Provider URLs" in the Electron dashboard takes effect without restarting the spawned server (#2575)
+- **fix(antigravity):** stabilize model detection, OAuth handling, and token refresh logic (#2757 — thanks @oyi77)
+- **fix(batch):** recover and resume stale batch jobs on server restart instead of failing them, and add configurable concurrency limit (#2755 — thanks @hartmark)
+- **fix(harness):** resolve Headers private slot errors and type check compiler issues, and stabilize cooldown retry test flakiness (#2763 — thanks @diegosouzapw)
 - Fix combo cascade skipping on credential check timeout
 - Fix team sessions going idle (worktree initialization)
 - **feat(providers):** enhance Google Gemini, CLI, and Antigravity resilience and features — introduces explicit TypeScript typing to translation layers, adds new Gemini 2.0 models, implements backoff and retry logic in the Gemini CLI executor, extracts Google Search grounding metadata into standard `citations`, and adds backend definitions for the `vertex-partner` provider. ([#2676](https://github.com/diegosouzapw/OmniRoute/pull/2676) — thanks @alltomatos)
@@ -93,7 +95,7 @@
 ### 🏆 Hall de Contribuidores
 
 Um agradecimento especial a todos que contribuíram com código, revisões e testes para este release:
-@ahmet-cetinkaya, @alltomatos, @benzntech, @Chewji9875, @df4p, @diegosouzapw, @disonjer, @herjarsa, @janeza2, @mrmm, @oyi77, @thanet-s, @terence71-glitch
+@ahmet-cetinkaya, @alltomatos, @benzntech, @Chewji9875, @df4p, @diegosouzapw, @disonjer, @hartmark, @herjarsa, @janeza2, @JxnLexn, @mrmm, @oyi77, @thanet-s, @terence71-glitch
 
 ---
 

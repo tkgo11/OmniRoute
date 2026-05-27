@@ -51,6 +51,9 @@ const IGNORE_FROM_CODE = new Set([
   "CI",
   "GITHUB_ACTIONS",
   "RUNNER_OS",
+  // Agent environment / system execution paths.
+  "PROJECT_ROOT",
+  "ARTIFACTS_DIR",
   // OS / Node internals frequently surfaced by indirect dependencies.
   "APPDATA",
   "LOCALAPPDATA",
