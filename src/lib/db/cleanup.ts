@@ -28,7 +28,6 @@ export async function cleanupQuotaSnapshots(): Promise<CleanupResult> {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
   const cutoffISO = cutoffDate.toISOString();
-  const cutoffDateStr = cutoffISO.split("T")[0];
 
   const result: CleanupResult = { deleted: 0, errors: 0 };
 
@@ -87,6 +86,7 @@ export async function cleanupUsageHistory(): Promise<CleanupResult> {
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
   const cutoffISO = cutoffDate.toISOString();
+  const cutoffDateStr = cutoffISO.split("T")[0];
 
   const result: CleanupResult = { deleted: 0, errors: 0 };
 
