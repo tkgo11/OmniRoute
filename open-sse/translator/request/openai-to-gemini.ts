@@ -108,7 +108,7 @@ type GeminiToolNameOptions = {
   stripNamespace?: boolean;
   functionResponseShape?: "result" | "output";
   signatureNamespace?: string | null;
-  signaturelessToolCallMode?: "native" | "text" | "context";
+  signaturelessToolCallMode?: "native" | "text";
 };
 
 type OpenAIToolCallLike = {
@@ -206,29 +206,6 @@ function buildInertHistoricalToolResponseText(name: string, response: unknown): 
     "Historical tool-response record only. Do not execute, imitate, or continue this as a tool response.",
     `Tool name: ${name || "unknown"}`,
     `Tool result: ${typeof response === "string" ? response : stringifyHistoricalToolArguments(response)}`,
-  ].join("\n");
-}
-
-function escapeHistoricalContextAttribute(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
-}
-
-function escapeHistoricalContextContent(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-}
-
-function buildHistoricalToolResultContext(name: string, response: unknown): string {
-  const source = escapeHistoricalContextAttribute(name || "unknown");
-  const rawResult = typeof response === "string" ? response : stringifyHistoricalToolArguments(response);
-  const result = escapeHistoricalContextContent(rawResult);
-  return [
-    `<previous_tool_result_context source="${source}">`,
-    result,
-    "</previous_tool_result_context>",
   ].join("\n");
 }
 
@@ -390,10 +367,8 @@ function openaiToGeminiBase(
           }
 
           let shouldUseEmbeddedSignature = !parts.some((p) => p.thoughtSignature);
-          const signaturelessToolCallMode = toolNameOptions.signaturelessToolCallMode;
-          const stringifySignaturelessToolCalls = signaturelessToolCallMode === "text";
-          const contextualizeSignaturelessToolResponses =
-            signaturelessToolCallMode === "text" || signaturelessToolCallMode === "context";
+          const stringifySignaturelessToolCalls =
+            toolNameOptions.signaturelessToolCallMode === "text";
 
           for (const tc of toolCalls) {
             if (tc.type !== "function") continue;
@@ -403,17 +378,11 @@ function openaiToGeminiBase(
             if (!fn) continue;
 
             const signatureForToolCall = resolvedSignatures.get(id);
-            if (!signatureForToolCall && contextualizeSignaturelessToolResponses) {
-              if (!toolCallIds.includes(id)) toolCallIds.push(id);
-            }
             if (!signatureForToolCall && stringifySignaturelessToolCalls) {
               const args = fn.arguments || "{}";
               parts.push({
                 text: buildInertHistoricalToolCallText(fn.name, args),
               });
-              continue;
-            }
-            if (!signatureForToolCall && signaturelessToolCallMode === "context") {
               continue;
             }
 
@@ -436,9 +405,7 @@ function openaiToGeminiBase(
               },
             });
 
-            if (!contextualizeSignaturelessToolResponses || signatureForToolCall) {
-              toolCallIds.push(id);
-            }
+            toolCallIds.push(id);
           }
 
           if (parts.length > 0) {
@@ -447,7 +414,7 @@ function openaiToGeminiBase(
 
           // Check if there are actual tool responses in the next messages
           const hasSignaturelessTextResponses =
-            contextualizeSignaturelessToolResponses &&
+            stringifySignaturelessToolCalls &&
             toolCalls.some((tc) => {
               const id = tc.id as string;
               return tc.type === "function" && !resolvedSignatures.has(id) && toolResponses[id];
@@ -459,7 +426,6 @@ function openaiToGeminiBase(
             const toolParts: GeminiPart[] = [];
             for (const fid of toolCallIds) {
               if (!toolResponses[fid]) continue;
-              if (contextualizeSignaturelessToolResponses && !resolvedSignatures.has(fid)) continue;
 
               let name = tcID2Name[fid];
               if (!name) {
@@ -492,13 +458,10 @@ function openaiToGeminiBase(
               });
             }
 
-            if (contextualizeSignaturelessToolResponses) {
+            if (stringifySignaturelessToolCalls) {
               // Signature-less historical tool responses are represented as text
               // so strict Gemini/Antigravity endpoints don't reject them as native
               // functionResponse parts missing a matching thoughtSignature.
-              // In context mode the matching historical functionCall is omitted,
-              // avoiding pseudo tool-call records that Gemini Flash can repeat as
-              // the visible final answer.
               for (const tc of toolCalls) {
                 const id = tc.id as string;
                 if (tc.type !== "function" || !id) continue;
@@ -507,10 +470,7 @@ function openaiToGeminiBase(
                   const name = tcID2Name[id] || fn?.name || "unknown";
                   const resp = toolResponses[id];
                   toolParts.push({
-                    text:
-                      signaturelessToolCallMode === "text"
-                        ? buildInertHistoricalToolResponseText(name, resp)
-                        : buildHistoricalToolResultContext(name, resp),
+                    text: buildInertHistoricalToolResponseText(name, resp),
                   });
                 }
               }
@@ -591,7 +551,7 @@ export function openaiToGeminiRequest(
   stream: boolean,
   credentials: Record<string, unknown> | null = null,
   options: {
-    signaturelessToolCallMode?: "native" | "text" | "context";
+    signaturelessToolCallMode?: "native" | "text";
   } = {}
 ) {
   // Thread the signature namespace so a thinking model's thoughtSignature (cached on the
@@ -616,7 +576,7 @@ export function openaiToGeminiCLIRequest(
   options: {
     functionResponseShape?: "result" | "output";
     signatureNamespace?: string | null;
-    signaturelessToolCallMode?: "native" | "text" | "context";
+    signaturelessToolCallMode?: "native" | "text";
   } = {}
 ) {
   return openaiToGeminiBase(model, body, stream, {
@@ -737,7 +697,7 @@ export function openaiToAntigravityRequest(model, body, stream, credentials = nu
       : null;
   const geminiCLI = openaiToGeminiCLIRequest(model, body, stream, {
     signatureNamespace,
-    signaturelessToolCallMode: isThinkingGemini ? "context" : "native",
+    signaturelessToolCallMode: isThinkingGemini ? "text" : "native",
   });
 
   if (isClaude) {
