@@ -2437,7 +2437,9 @@ const _REGISTRY_EAGER: Record<string, RegistryEntry> = {
 
   huggingchat: {
     id: "huggingchat",
-    alias: "hc",
+    // Distinct alias: "hc" belongs to the hackclub provider; huggingchat is
+    // addressed by its own id to avoid the alias collision.
+    alias: "huggingchat",
     format: "openai",
     executor: "huggingchat",
     baseUrl: "https://huggingface.co/chat/conversation",
@@ -3863,7 +3865,9 @@ const _REGISTRY_EAGER: Record<string, RegistryEntry> = {
 
   "kimi-web": {
     id: "kimi-web",
-    alias: "kimi",
+    // Distinct alias: the primary "kimi" provider (dedicated KimiExecutor) keeps
+    // the short "kimi" alias; this web/cookie variant is addressed by its own id.
+    alias: "kimi-web",
     format: "openai",
     executor: "kimi-web",
     baseUrl: "https://kimi.moonshot.cn/api/chat",
@@ -3891,7 +3895,9 @@ const _REGISTRY_EAGER: Record<string, RegistryEntry> = {
 
   "qwen-web": {
     id: "qwen-web",
-    alias: "qw",
+    // Distinct alias: the primary "qwen" provider keeps the short "qw" alias;
+    // this web/cookie variant is addressed by its own id.
+    alias: "qwen-web",
     format: "openai",
     executor: "qwen-web",
     baseUrl: "https://chat.qwen.ai/api/chat/completions",
