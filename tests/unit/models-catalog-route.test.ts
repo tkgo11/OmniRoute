@@ -122,6 +122,48 @@ test("v1 models catalog accepts bearer API keys and filters the list by allowed 
   );
 });
 
+test("v1 models catalog does NOT accept API keys supplied via query string (#3300 security follow-up)", async () => {
+  // Query-string token fallbacks (`?token=`/`?key=`/`?apiKey=`/`?api_key=`) were
+  // intentionally removed — a credential in the query string leaks into access
+  // logs / Referer headers. The VS Code integration uses the path-scoped
+  // `/vscode/<token>/…` form instead (covered by the next test). So a `?token=`
+  // on the catalog route is no longer a usable credential → auth fails.
+  await settingsDb.updateSettings({
+    requireLogin: true,
+    password: "hashed-password",
+    requireAuthForModels: true,
+  });
+  await seedConnection("openai", { name: "openai-query-auth" });
+
+  const key = await apiKeysDb.createApiKey("catalog-query-auth", "machine-catalog-query");
+
+  const response = await v1ModelsCatalog.getUnifiedModelsResponse(
+    new Request(`http://localhost/api/v1/models?token=${encodeURIComponent(key.key)}`)
+  );
+
+  assert.equal(response.status, 401);
+});
+
+test("v1 models catalog accepts API keys embedded in vscode path aliases when auth is required", async () => {
+  await settingsDb.updateSettings({
+    requireLogin: true,
+    password: "hashed-password",
+    requireAuthForModels: true,
+  });
+  await seedConnection("openai", { name: "openai-path-auth" });
+
+  const key = await apiKeysDb.createApiKey("catalog-path-auth", "machine-catalog-path");
+
+  const response = await v1ModelsCatalog.getUnifiedModelsResponse(
+    new Request(`http://localhost/api/v1/vscode/${encodeURIComponent(key.key)}/models`)
+  );
+  const body = (await response.json()) as any;
+
+  assert.equal(response.status, 200);
+  assert.ok(Array.isArray(body.data));
+  assert.ok(body.data.length > 0);
+});
+
 test("v1 models catalog hides models excluded by every active connection while keeping models served by at least one account", async () => {
   const first = await seedConnection("openai", {
     name: "openai-first",
