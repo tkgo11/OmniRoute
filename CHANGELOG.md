@@ -4,9 +4,7 @@
 
 ---
 
-## [3.8.13] — Unreleased
-
-_Development cycle in progress — entries are added as work merges into `release/v3.8.13` and finalized by the release flow._
+## [3.8.13] — 2026-06-06
 
 ### ✨ New Features
 
@@ -32,6 +30,27 @@ _Development cycle in progress — entries are added as work merges into `releas
 - **fix(sse):** strip leaked internal tool-call envelopes (`to=functions.*` / `multi_tool_use.parallel { … }`) from visible assistant text and sanitize Responses-API streaming (drop `commentary`-phase output items) so harness syntax never reaches the client. ([#3311](https://github.com/diegosouzapw/OmniRoute/pull/3311) — thanks @zhiru)
 - **fix(sse):** expose the Claude (`claude-opus-4-6-thinking`, `claude-sonnet-4-6`) and Gemini budget tiers (`gemini-3.1-pro-{high,low}`, `gemini-3.5-flash-{low,extra-low}`) in the Antigravity catalog — they are user-callable on the Antigravity OAuth backend (agy parity), correcting an earlier assumption that Claude had been removed. ([#3303](https://github.com/diegosouzapw/OmniRoute/pull/3303), discussion #3184 — thanks @diegosouzapw)
 - **fix(catalog):** compute a combo's `context_length` from the known targets only — a single target with unknown context no longer collapses the whole combo to `undefined`; also accepts live `{id, contextLength}` model entries in the opencode-provider helper (follow-up to #3298). ([#3304](https://github.com/diegosouzapw/OmniRoute/pull/3304) — thanks @herjarsa / @diegosouzapw)
+
+### 📝 Maintenance
+
+- **test(catalog):** align the Antigravity preview-alias catalog test with the #3303 budget tiers — asserts the restored Claude/Gemini tiers are surfaced, locking in the behavior so a future tier change can't silently drop them again (thanks @diegosouzapw)
+- **docs:** rename the `resolve-issues` skill references to `review-issues` across the docs/skill surfaces, matching the renamed governance skill (thanks @diegosouzapw)
+- **chore(release):** open the v3.8.13 development cycle (version bump + cycle bookkeeping) and finalize this changelog (thanks @diegosouzapw)
+
+### 🙌 Contributors
+
+Thanks to everyone whose work landed in v3.8.13:
+
+| Contributor | PRs / Issues |
+| --- | --- |
+| [@zhiru](https://github.com/zhiru) | #3300, #3306, #3307 / #3310, #3309, #3301, #3311 |
+| [@oyi77](https://github.com/oyi77) | #3292 (closes #3070) |
+| [@onizukashonan14-png](https://github.com/onizukashonan14-png) | #3296 |
+| [@uniQta](https://github.com/uniQta) | #3290, #3295 |
+| [@wilsonicdev](https://github.com/wilsonicdev) | #3297 |
+| [@herjarsa](https://github.com/herjarsa) | #3298, #3304 |
+| [@mikmaneggahommie](https://github.com/mikmaneggahommie) | reported the Completions.me rickroll (discussion #3293) |
+| [@diegosouzapw](https://github.com/diegosouzapw) | maintainer — #3299, #3302, #3303; co-author on #3292 / #3306 / #3298 / #3304 / #3309 |
 
 ---
 

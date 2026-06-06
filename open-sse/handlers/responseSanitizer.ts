@@ -642,7 +642,7 @@ function sanitizeResponsesStreamingOutputItem(item: unknown): JsonRecord | null 
               text: collapseExcessiveNewlines(toString(partRecord.text) || ""),
             };
           })
-          .filter((part): part is JsonRecord => part !== null)
+          .filter((part): part is NonNullable<typeof part> => part !== null)
       : [];
 
     return {
