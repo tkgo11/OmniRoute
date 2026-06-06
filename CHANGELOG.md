@@ -1873,7 +1873,7 @@ Thank you to all **55+ community contributors** who made v3.8.0 possible! 🎉
 
 ### 🧹 Chores
 
-- **chore(workflow):** mandate implementation plan generation in `/resolve-issues` workflow before coding
+- **chore(workflow):** mandate implementation plan generation in `/review-issues` workflow before coding
 - **chore(release):** expand contributor credits to 155 PRs across full project history
 
 ### 🏆 Community Contributors Acknowledgment
