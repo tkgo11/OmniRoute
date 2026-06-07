@@ -5,7 +5,8 @@ import { AutoVariant } from "./autoPrefix";
 import { getProviderConnections } from "@/lib/db/providers";
 import { getProviderRegistry } from "./providerRegistryAccessor";
 import type { ConnectionFields } from "@/lib/db/encryption";
-import { NOAUTH_PROVIDERS, WEB_COOKIE_PROVIDERS } from "@/shared/constants/providers";
+import { NOAUTH_PROVIDERS } from "@/shared/constants/providers";
+import { hasUsableWebSessionCredential } from "@/shared/providers/webSessionCredentials";
 import { defaultLogger as log } from "@omniroute/open-sse/utils/logger";
 
 /** Minimal connection shape needed for virtual auto-combo factory */
@@ -91,9 +92,7 @@ function hasUsableOAuthToken(conn: VirtualFactoryConn): boolean {
 }
 
 function hasProviderSpecificSessionData(conn: VirtualFactoryConn): boolean {
-  if (!(conn.provider in WEB_COOKIE_PROVIDERS)) return false;
-  const data = conn.providerSpecificData;
-  return Boolean(data && typeof data === "object" && Object.keys(data).length > 0);
+  return hasUsableWebSessionCredential(conn.provider, conn.providerSpecificData);
 }
 
 function hasUsableConnectionCredential(conn: VirtualFactoryConn): boolean {
