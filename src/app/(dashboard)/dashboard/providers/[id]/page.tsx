@@ -186,6 +186,16 @@ function providerText(
   return fallback;
 }
 
+function providerCountText(
+  t: ProviderMessageTranslator,
+  key: string,
+  count: number,
+  singularFallback: string,
+  pluralFallback: string
+): string {
+  return providerText(t, key, count === 1 ? singularFallback : pluralFallback, { count });
+}
+
 function readBooleanToggle(value: unknown, fallback: boolean): boolean {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return value === 1;
@@ -4779,8 +4789,20 @@ export default function ProviderDetailPage() {
                         />
                         <span className="text-sm font-medium text-text-muted">
                           {selectedIds.size > 0
-                            ? t("selectedCount", { count: selectedIds.size })
-                            : t("accountsCount", { count: connections.length })}
+                            ? providerCountText(
+                                t,
+                                "selectedCount",
+                                selectedIds.size,
+                                "{count} selected",
+                                "{count} selected"
+                              )
+                            : providerCountText(
+                                t,
+                                "accountsCount",
+                                connections.length,
+                                "{count} account",
+                                "{count} accounts"
+                              )}
                         </span>
                       </label>
 
@@ -4928,8 +4950,20 @@ export default function ProviderDetailPage() {
                         />
                         <span className="text-sm font-medium text-text-muted">
                           {selectedIds.size > 0
-                            ? t("selectedCount", { count: selectedIds.size })
-                            : t("accountsCount", { count: connections.length })}
+                            ? providerCountText(
+                                t,
+                                "selectedCount",
+                                selectedIds.size,
+                                "{count} selected",
+                                "{count} selected"
+                              )
+                            : providerCountText(
+                                t,
+                                "accountsCount",
+                                connections.length,
+                                "{count} account",
+                                "{count} accounts"
+                              )}
                         </span>
                       </label>
 
@@ -7922,6 +7956,7 @@ function ConnectionRow({
                 <span className="text-text-muted/30 select-none">|</span>
                 <button
                   onClick={() => onToggleProxyEnabled(!proxyEnabled)}
+                  aria-label={proxyEnabled ? t("proxyEnabledTitle") : t("proxyDisabledTitle")}
                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-all cursor-pointer ${
                     proxyEnabled
                       ? "bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25"
@@ -7930,7 +7965,7 @@ function ConnectionRow({
                   title={proxyEnabled ? t("proxyEnabledTitle") : t("proxyDisabledTitle")}
                 >
                   <span className="material-symbols-outlined text-[13px]">vpn_lock</span>
-                  {proxyEnabled ? t("proxyOn") : t("proxyOff")}
+                  {proxyEnabled ? <span className="sr-only">{t("proxyOn")}</span> : t("proxyOff")}
                 </button>
               </>
             )}
@@ -7939,6 +7974,7 @@ function ConnectionRow({
                 <span className="text-text-muted/30 select-none">|</span>
                 <button
                   onClick={() => onTogglePerKeyProxyEnabled(!perKeyProxyEnabled)}
+                  aria-label={perKeyProxyEnabled ? t("perKeyProxyEnabledTitle") : t("perKeyProxyDisabledTitle")}
                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium transition-all cursor-pointer ${
                     perKeyProxyEnabled
                       ? "bg-violet-500/15 text-violet-500 hover:bg-violet-500/25"
@@ -7947,7 +7983,11 @@ function ConnectionRow({
                   title={perKeyProxyEnabled ? t("perKeyProxyEnabledTitle") : t("perKeyProxyDisabledTitle")}
                 >
                   <span className="material-symbols-outlined text-[13px]">key</span>
-                  {perKeyProxyEnabled ? t("perKeyProxyOn") : t("perKeyProxyOff")}
+                  {perKeyProxyEnabled ? (
+                    t("perKeyProxyOn")
+                  ) : (
+                    <span className="sr-only">{t("perKeyProxyOff")}</span>
+                  )}
                 </button>
               </>
             )}
