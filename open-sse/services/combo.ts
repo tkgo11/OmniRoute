@@ -1839,7 +1839,7 @@ type PreScreenResult = { profile: ProviderProfile | null; available: boolean };
 
 export async function preScreenTargets(
   targets: ResolvedComboTarget[],
-  isModelAvailable?: ((model: string, target: ResolvedComboTarget) => Promise<boolean>) | null
+  isModelAvailable?: IsModelAvailable | null
 ): Promise<Map<string, PreScreenResult>> {
   if (targets.length === 0) {
     return new Map();
@@ -1858,7 +1858,11 @@ export async function preScreenTargets(
 
       let available = true;
       if (isModelAvailable) {
-        available = await isModelAvailable(target.modelStr, target).catch(() => true);
+        // IsModelAvailable may return a sync boolean or a Promise; Promise.resolve
+        // normalizes both so the .catch() never runs against a bare boolean.
+        available = await Promise.resolve(isModelAvailable(target.modelStr, target)).catch(
+          () => true
+        );
       }
       return { key: target.executionKey, result: { profile, available } };
     }

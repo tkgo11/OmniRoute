@@ -181,7 +181,9 @@ function protectPipelinePayloads(payloads: unknown): RequestPipelinePayloads | n
         )
       );
       if (Object.keys(compacted).length > 0) {
-        protectedPayloads.streamChunks = protectPayloadForLog(compacted);
+        protectedPayloads.streamChunks = protectPayloadForLog(
+          compacted
+        ) as RequestPipelinePayloads["streamChunks"];
       }
       continue;
     }

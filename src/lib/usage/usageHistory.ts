@@ -441,9 +441,12 @@ export function updatePendingRequestStreamChunks(
 
 /**
  * Get the pending requests state (for usageStats).
- * @returns {{ byModel: Object, byAccount: Object }}
+ * @returns {{ byModel: Record<string, number>, byAccount: Record<string, Record<string, number>> }}
  */
-export function getPendingRequests(): { byModel: object; byAccount: object } {
+export function getPendingRequests(): {
+  byModel: Record<string, number>;
+  byAccount: Record<string, Record<string, number>>;
+} {
   return pendingRequests;
 }
 
