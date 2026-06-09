@@ -1,0 +1,11 @@
+{
+  "_comment": "Catraca de qualidade. 'down' = nao pode aumentar; 'up' = nao pode cair. Atualize via 'npm run quality:ratchet -- --update' (somente quando melhora). Cada valor e um numero REAL medido, nunca um chute. Cobertura entra na Fase 4 a partir de um run de cobertura mergeada no CI.",
+  "metrics": {
+    "eslintWarnings": { "value": 3482, "direction": "down" },
+    "coverage.statements": { "value": 80, "direction": "up" },
+    "coverage.lines": { "value": 80, "direction": "up" },
+    "coverage.functions": { "value": 82, "direction": "up" },
+    "coverage.branches": { "value": 73, "direction": "up" }
+  },
+  "_coverage_note": "Pisos conservadores (real ~82,58/82,58/84,23/75,22 em COVERAGE_PLAN.md 2026-05-13, ~2pt de margem p/ evitar false-fail antes de calibrar no CI). Apos o 1o run verde de coverage mergeada na main, aperte com 'npm run quality:ratchet -- --update'."
+}
