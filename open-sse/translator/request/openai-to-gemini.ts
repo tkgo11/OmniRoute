@@ -114,6 +114,8 @@ type GeminiToolNameOptions = {
   // Gemini API DOES use `id` for Gemini 3+ signature matching, so this is scoped to
   // the vertex provider only.
   stripFunctionCallId?: boolean;
+  /** Only Antigravity/Gemini CLI support the thoughtSignature field. Standard Gemini rejects it with 400. */
+  supportsSignatureBypass?: boolean;
 };
 
 // Vertex AI (and Vertex Partner models) reject the OpenAI-style `id` field inside
@@ -234,7 +236,8 @@ function escapeHistoricalContextContent(value: string): string {
 
 function buildHistoricalToolResultContext(name: string, response: unknown): string {
   const source = escapeHistoricalContextAttribute(name || "unknown");
-  const rawResult = typeof response === "string" ? response : stringifyHistoricalToolArguments(response);
+  const rawResult =
+    typeof response === "string" ? response : stringifyHistoricalToolArguments(response);
   const result = escapeHistoricalContextContent(rawResult);
   return [
     `<previous_tool_result_context source="${source}">`,
@@ -414,18 +417,26 @@ function openaiToGeminiBase(
             if (!fn) continue;
 
             const signatureForToolCall = resolvedSignatures.get(id);
-            if (!signatureForToolCall && contextualizeSignaturelessToolResponses) {
-              if (!toolCallIds.includes(id)) toolCallIds.push(id);
-            }
-            if (!signatureForToolCall && stringifySignaturelessToolCalls) {
-              const args = fn.arguments || "{}";
-              parts.push({
-                text: buildInertHistoricalToolCallText(fn.name, args),
-              });
-              continue;
-            }
-            if (!signatureForToolCall && signaturelessToolCallMode === "context") {
-              continue;
+
+            // Non-bypass paths (standard Gemini direct, mode "text"/"context")
+            // cannot send a thoughtSignature and reject signature-less native tool
+            // parts, so historical signature-less tool calls are represented as
+            // inert text/context (#3358). The Antigravity/CLI bypass path
+            // (supportsSignatureBypass) instead emits native parts carrying the
+            // skip_thought_signature_validator sentinel below.
+            if (!toolNameOptions.supportsSignatureBypass) {
+              if (!signatureForToolCall && contextualizeSignaturelessToolResponses) {
+                if (!toolCallIds.includes(id)) toolCallIds.push(id);
+              }
+              if (!signatureForToolCall && stringifySignaturelessToolCalls) {
+                parts.push({
+                  text: buildInertHistoricalToolCallText(fn.name, fn.arguments || "{}"),
+                });
+                continue;
+              }
+              if (!signatureForToolCall && signaturelessToolCallMode === "context") {
+                continue;
+              }
             }
 
             const args = tryParseJSON(fn.arguments || "{}");
@@ -438,8 +449,15 @@ function openaiToGeminiBase(
             }
 
             // Gemini expects the signature on the functionCall part itself.
+            // If we are in a mode where missing signatures cause 400s (and we couldn't find one),
+            // safely default to the bypass string to protect against 400s.
+            const finalSignature =
+              embeddedThoughtSignature ||
+              (toolNameOptions.supportsSignatureBypass && signaturelessToolCallMode !== "text"
+                ? "skip_thought_signature_validator"
+                : undefined);
             parts.push({
-              ...(embeddedThoughtSignature ? { thoughtSignature: embeddedThoughtSignature } : {}),
+              ...(finalSignature ? { thoughtSignature: finalSignature } : {}),
               functionCall: {
                 ...(toolNameOptions.stripFunctionCallId ? {} : { id: id }),
                 name: sanitizeToolName(fn.name),
@@ -447,7 +465,13 @@ function openaiToGeminiBase(
               },
             });
 
-            if (!contextualizeSignaturelessToolResponses || signatureForToolCall) {
+            // Bypass path always emits the native response; non-bypass keeps the
+            // contextualize-aware bookkeeping (signature-less ids handled as text).
+            if (
+              toolNameOptions.supportsSignatureBypass ||
+              !contextualizeSignaturelessToolResponses ||
+              signatureForToolCall
+            ) {
               toolCallIds.push(id);
             }
           }
@@ -470,7 +494,12 @@ function openaiToGeminiBase(
             const toolParts: GeminiPart[] = [];
             for (const fid of toolCallIds) {
               if (!toolResponses[fid]) continue;
-              if (contextualizeSignaturelessToolResponses && !resolvedSignatures.has(fid)) continue;
+              if (
+                !toolNameOptions.supportsSignatureBypass &&
+                contextualizeSignaturelessToolResponses &&
+                !resolvedSignatures.has(fid)
+              )
+                continue;
 
               let name = tcID2Name[fid];
               if (!name) {
@@ -503,9 +532,12 @@ function openaiToGeminiBase(
               });
             }
 
-            if (contextualizeSignaturelessToolResponses) {
+            if (
+              !toolNameOptions.supportsSignatureBypass &&
+              contextualizeSignaturelessToolResponses
+            ) {
               // Signature-less historical tool responses are represented as text
-              // so strict Gemini/Antigravity endpoints don't reject them as native
+              // so strict standard-Gemini endpoints don't reject them as native
               // functionResponse parts missing a matching thoughtSignature.
               // In context mode the matching historical functionCall is omitted,
               // avoiding pseudo tool-call records that Gemini Flash can repeat as
@@ -636,6 +668,7 @@ export function openaiToGeminiCLIRequest(
     functionResponseShape: options.functionResponseShape,
     signatureNamespace: options.signatureNamespace,
     signaturelessToolCallMode: options.signaturelessToolCallMode,
+    supportsSignatureBypass: true,
   });
 }
 
