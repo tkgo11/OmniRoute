@@ -41,6 +41,28 @@ export interface WaitForCooldownSettings {
   maxRetryWaitMs: number;
 }
 
+export interface ProviderCooldownSettings {
+  /**
+   * Minimum cooldown (ms) before a failed provider/connection can be retried.
+   * This prevents subsequent requests from immediately re-walking failing providers.
+   * Scaled exponentially with failure count: minRetryCooldownMs * 2^(failures-1).
+   * Default: 5000 (5 seconds).
+   */
+  minRetryCooldownMs: number;
+  /**
+   * Maximum cooldown (ms) before a failed provider/connection is retried regardless.
+   * Hard cap to prevent providers from being skipped indefinitely.
+   * Default: 300000 (5 minutes).
+   */
+  maxRetryCooldownMs: number;
+  /**
+   * Enable/disable global provider cooldown tracking.
+   * When disabled, only per-request cooldown state is used.
+   * Default: true.
+   */
+  enabled: boolean;
+}
+
 export interface QuotaPreflightSettings {
   /**
    * Global minimum-remaining cutoff (percent, 0-100). A connection is skipped
@@ -73,6 +95,7 @@ export interface ResilienceSettings {
   connectionCooldown: Record<AuthCategory, ConnectionCooldownProfileSettings>;
   providerBreaker: Record<AuthCategory, ProviderBreakerProfileSettings>;
   waitForCooldown: WaitForCooldownSettings;
+  providerCooldown: ProviderCooldownSettings;
   quotaPreflight: QuotaPreflightSettings;
 }
 
@@ -81,6 +104,7 @@ export interface ResilienceSettingsPatch {
   connectionCooldown?: Partial<Record<AuthCategory, Partial<ConnectionCooldownProfileSettings>>>;
   providerBreaker?: Partial<Record<AuthCategory, Partial<ProviderBreakerProfileSettings>>>;
   waitForCooldown?: Partial<WaitForCooldownSettings>;
+  providerCooldown?: Partial<ProviderCooldownSettings>;
   quotaPreflight?: Partial<QuotaPreflightSettings>;
 }
 
@@ -155,6 +179,17 @@ export const DEFAULT_RESILIENCE_SETTINGS: ResilienceSettings = {
     maxRetries: 3,
     maxRetryWaitSec: 30,
     maxRetryWaitMs: 30000,
+  },
+  providerCooldown: {
+    minRetryCooldownMs: Number(process.env.PROVIDER_COOLDOWN_MIN_MS || "5000"),
+    maxRetryCooldownMs: Number(process.env.PROVIDER_COOLDOWN_MAX_MS || "300000"),
+    // Opt-in (default OFF): this global cross-request cooldown overlaps the
+    // existing Connection Cooldown / Provider Circuit Breaker layers, so it is
+    // disabled by default and must be explicitly enabled by the operator until
+    // its interaction with those layers is validated in production.
+    enabled: ["true", "1", "on"].includes(
+      (process.env.PROVIDER_COOLDOWN_ENABLED || "").trim().toLowerCase()
+    ),
   },
   quotaPreflight: {
     // Remaining-% semantics. 2 = "stop when only 2% remaining" (= 98% used).
@@ -382,6 +417,24 @@ function normalizeWaitForCooldownSettings(
   };
 }
 
+function normalizeProviderCooldownSettings(
+  next: unknown,
+  fallback: ProviderCooldownSettings
+): ProviderCooldownSettings {
+  const record = asRecord(next);
+  const enabled = toBoolean(record.enabled, fallback.enabled);
+  const minRetryCooldownMs = toInteger(record.minRetryCooldownMs, fallback.minRetryCooldownMs, {
+    min: 0,
+    max: 60 * 60 * 1000,
+  });
+  const maxRetryCooldownMs = toInteger(record.maxRetryCooldownMs, fallback.maxRetryCooldownMs, {
+    min: minRetryCooldownMs,
+    max: 24 * 60 * 60 * 1000,
+  });
+
+  return { enabled, minRetryCooldownMs, maxRetryCooldownMs };
+}
+
 function buildLegacyFallback(settings: JsonRecord): ResilienceSettings {
   const profiles = asRecord(settings.providerProfiles);
   const defaults = asRecord(settings.rateLimitDefaults);
@@ -466,6 +519,7 @@ function buildLegacyFallback(settings: JsonRecord): ResilienceSettings {
       maxRetryWaitSec: waitMaxRetrySec,
       maxRetryWaitMs: waitMaxRetrySec * 1000,
     },
+    providerCooldown: DEFAULT_RESILIENCE_SETTINGS.providerCooldown,
     quotaPreflight: DEFAULT_RESILIENCE_SETTINGS.quotaPreflight,
   };
 }
@@ -503,6 +557,10 @@ export function resolveResilienceSettings(
       current.waitForCooldown,
       fallback.waitForCooldown
     ),
+    providerCooldown: normalizeProviderCooldownSettings(
+      current.providerCooldown,
+      fallback.providerCooldown
+    ),
     quotaPreflight: normalizeQuotaPreflightSettings(
       current.quotaPreflight,
       fallback.quotaPreflight
@@ -539,6 +597,10 @@ export function mergeResilienceSettings(
     waitForCooldown: normalizeWaitForCooldownSettings(
       updates.waitForCooldown,
       current.waitForCooldown
+    ),
+    providerCooldown: normalizeProviderCooldownSettings(
+      updates.providerCooldown,
+      current.providerCooldown
     ),
     quotaPreflight: normalizeQuotaPreflightSettings(updates.quotaPreflight, current.quotaPreflight),
   };
