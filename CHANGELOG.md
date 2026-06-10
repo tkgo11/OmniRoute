@@ -6,6 +6,10 @@
 
 - **feat(providers):** add Claude Fable 5 (`claude-fable-5`) — wires the new flagship model across the full pipeline: `cc` and `kiro` provider registries (1M context, 128k output), pricing constants, model spec (adaptive thinking, vision, tool use), fast mode, 1M-context beta header, fallback chain (`claude-fable-5 → claude-opus-4-8 → claude-opus-4-7 → claude-sonnet-4-6`), and cost data.
 
+### 🔧 Bug Fixes
+
+- **fix(translator):** scope the Gemini `thoughtSignature` bypass to the Antigravity/CLI path and unwrap array-shaped Gemini error bodies — signature-less historical tool calls on Antigravity/CLI are emitted as native parts carrying the `skip_thought_signature_validator` sentinel (preventing upstream 400s), while the standard Gemini direct path keeps its existing text/context representation untouched. ([#3560](https://github.com/diegosouzapw/OmniRoute/pull/3560) — thanks @oyi77 and @Six7Day via [#3414](https://github.com/diegosouzapw/OmniRoute/pull/3414))
+
 ---
 
 ## [3.8.20] — Unreleased
