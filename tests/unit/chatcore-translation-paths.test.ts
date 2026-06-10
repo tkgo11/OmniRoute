@@ -392,6 +392,11 @@ test.after(async () => {
 });
 
 test("chatCore times out upstream execution before provider response headers", async () => {
+  // This test asserts pendingDetail.providerRequest — only attached when the
+  // call-log pipeline capture is enabled. Declare the dependency explicitly
+  // (fresh-DB default leaves it off → the waitFor below would never resolve;
+  // failed deterministically on CI and on an isolated run, incl. at v3.8.18).
+  await settingsDb.updateSettings({ call_log_pipeline_enabled: true });
   const executor = getExecutor("openai");
   const originalGetTimeoutMs = executor.getTimeoutMs?.bind(executor);
   executor.getTimeoutMs = () => 200;
@@ -430,9 +435,12 @@ test("chatCore times out upstream execution before provider response headers", a
 
     const pendingDetail = (await waitFor(
       () =>
-        Object.values(getPendingRequests().details[connectionId] || {}).find(
-          (detail: any) => detail?.providerRequest?.model === "gpt-4o-mini"
-        )
+        // details[connectionId] is Record<modelKey, PendingRequestDetail[]> —
+        // the original predicate tested each ARRAY's .providerRequest (always
+        // undefined), so the waitFor could never resolve. Flatten to the details.
+        Object.values(getPendingRequests().details[connectionId] || {})
+          .flat()
+          .find((detail: any) => detail?.providerRequest?.model === "gpt-4o-mini")
     )) as any;
     assert.equal(pendingDetail?.providerRequest?.model, "gpt-4o-mini");
     assert.deepEqual(pendingDetail?.providerRequest?.messages, body.messages);
