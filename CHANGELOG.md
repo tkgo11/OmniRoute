@@ -4,6 +4,12 @@
 
 ---
 
+## [3.8.20] — Unreleased
+
+_Development cycle in progress._
+
+---
+
 ## [3.8.19] — 2026-06-09
 
 > Focused quality-infrastructure release: the complete **quality-gate ratchet + anti-hallucination guardrail system** (Phases 0–6 + fast-tracked 6A.1/6A.2). No external PRs were taken this cycle by design — community PRs carry over to the next cycle.
