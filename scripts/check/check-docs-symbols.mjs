@@ -210,9 +210,13 @@ function main() {
   const routeFiles = collectRouteFiles();
   // docs/i18n/** são espelhos auto-gerados das docs canônicas — validar só o canônico
   // evita 40× de ruído duplicado (e os mirrors herdam qualquer fix do canônico).
-  const docFiles = walk(DOCS, (n) => /\.md$/.test(n)).filter(
-    (f) => !path.relative(ROOT, f).replace(/\\/g, "/").startsWith("docs/i18n/")
-  );
+  // docs/superpowers/** são planos internos de implementação (snapshots históricos
+  // de intenção — podem citar rotas planejadas/abandonadas), não claims sobre o
+  // código atual; fora do escopo do gate (drift surgiu no ciclo v3.8.18).
+  const docFiles = walk(DOCS, (n) => /\.md$/.test(n)).filter((f) => {
+    const rel = path.relative(ROOT, f).replace(/\\/g, "/");
+    return !rel.startsWith("docs/i18n/") && !rel.startsWith("docs/superpowers/");
+  });
   const docPathsByFile = docFiles.map((f) => ({
     file: path.relative(ROOT, f).replace(/\\/g, "/"),
     paths: extractDocApiPaths(fs.readFileSync(f, "utf8")),
