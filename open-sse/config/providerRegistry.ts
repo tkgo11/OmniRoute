@@ -4078,6 +4078,7 @@ const _REGISTRY_EAGER: Record<string, RegistryEntry> = {
     baseUrl: "https://api.xiaomimimo.com",
     chatPath: "/api/free-ai/openai/chat",
     authType: "none",
+    authHeader: "none",
     models: CHAT_OPENAI_COMPAT_MODELS["mimocode"],
   },
 
