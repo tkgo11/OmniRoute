@@ -34,6 +34,7 @@
 
 ### 🔧 Bug Fixes
 
+- **Hermes Agent**: honour the `HERMES_HOME` env var when writing/reading the agent config instead of always using `~/.hermes` (#3628). Introduced `getHermesHome()` / `getHermesConfigPath()` helpers (read at call-time) and routed all four hardcoded callsites through them so OmniRoute's config lands in the same directory that the Hermes PowerShell installer configures on Windows.
 - **MITM/cert**: remove the duplicated "Command failed:" prefix in system-command error messages ([#3641](https://github.com/diegosouzapw/OmniRoute/issues/3641)): `execFileText` was prepending its own `"Command failed: "` prefix on top of Node's `execFile` error message, which already begins with `"Command failed: <cmd>"` for non-zero exits. The error message now surfaces Node's message directly (no double prefix), with stderr appended only when non-empty.
 
 - **fix(reasoning): replay `reasoning_content` on plain DeepSeek turns** ([#3632] — thanks @adivekar-utexas): the reasoning-replay gate previously only fired when an assistant message already carried `reasoning_content`. Plain (non-tool-call) turns whose `reasoning_content` was stripped by the client (e.g. Cursor) were forwarded without it, so DeepSeek V4+ rejected the request with 400 "the reasoning_content in the thinking mode must be passed back". The gate now also covers missing/empty `reasoning_content` on DeepSeek replay targets, injecting the cached reasoning (or the non-Anthropic placeholder) so multi-turn text conversations no longer 400. Fixes #1682. 2 regression tests.
