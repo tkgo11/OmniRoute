@@ -8,7 +8,7 @@
 
 ### ✨ Added
 
-- **MiMoCode free-tier provider** ([#3659] — thanks @pizzav-xyz): new no-auth provider `mimocode` (alias `mcode`) exposing Xiaomi's `mimo-auto` model (1M context) via device-fingerprint bootstrap-JWT auth (`/api/free-ai/bootstrap` → Bearer JWT → `/api/free-ai/openai/chat`). Supports multiple accounts (N fingerprints → round-robin with exponential cooldown), re-bootstrap on 401/403, and cooldown on 429. Reuses a new generic `NoAuthAccountCard` dashboard component (also wired for `opencode`). 22 unit tests; upstream validated live during review. Co-authored with @pizzav-xyz.
+- **MiMoCode free-tier provider** ([#3659] — thanks @pizzav-xyz): new no-auth provider `mimocode` (alias `mcode`) exposing Xiaomi's `mimo-auto` model (1M context) via device-fingerprint bootstrap-JWT auth (`/api/free-ai/bootstrap` → Bearer JWT → `/api/free-ai/openai/chat`). Supports multiple accounts (N fingerprints → round-robin with exponential cooldown), re-bootstrap on 401/403, and cooldown on 429. Reuses a new generic `NoAuthAccountCard` dashboard component (also wired for `opencode`). 22 unit tests; upstream validated live during review. (Maintainer follow-up: added the required `authHeader: "none"` field to the registry entry.) Co-authored with @pizzav-xyz.
 - **Prefer Claude Code for unprefixed `claude-*` model IDs** ([#3540] — thanks @Witroch4): opt-in setting (default off) that routes bare `claude-*` model IDs from Claude Code clients through the Claude Code OAuth account instead of requiring a provider prefix. Configurable via the `OMNIROUTE_PREFER_CLAUDE_CODE_FOR_UNPREFIXED_CLAUDE_MODELS` env flag or a dashboard toggle on the Claude provider page; explicit provider prefixes still win. Full layer coverage (resolver + DB setting + zod schemas + types + UI) with 6 tests. Co-authored with @Witroch4.
 - **Codex Responses-WebSocket call history** ([#3616] — thanks @kkkayye): Codex `/v1/responses` WebSocket calls are now persisted to request history — success completions plus prepare-failures, upstream WS errors and premature closes — with `sanitizeErrorMessage` applied to the stored error. Two proxy-side integration tests cover the success and failure paths.
 
@@ -51,6 +51,11 @@
 - **/v1/responses**: detect stream readiness for tool-call-only and `object`-less chunks so Codex-shaped (reasoning + tools) requests no longer fail with "Stream ended before producing useful content" (#3612)
 - **RTL locales (ar/fa/he/ur)**: use logical CSS direction utilities for the sidebar and key overlays so the layout mirrors correctly under `dir=rtl` (#3541, partial — core layout)
 - **Kiro/AWS auto-import**: set a descriptive account name and dedupe by `profileArn` so imports no longer create nameless duplicate "OAuth Account" rows (#3615)
+- **fix(guardrails):** the `/api/guardrails/test` route now validates its body through `validateBody()` (Zod) instead of parsing raw JSON directly, aligning it with the repo-wide input-validation pattern (Hard Rule #7). ([#3621](https://github.com/diegosouzapw/OmniRoute/pull/3621) — thanks @diegosouzapw)
+
+### 📝 Maintenance
+
+- **fix(ci):** increase the `execFileSync` `maxBuffer` in `validate-pack-artifact` so the npm-pack inventory no longer overflows on large tarballs during release validation — follow-up to the v3.8.21 pack-artifact hotfix. ([#3622](https://github.com/diegosouzapw/OmniRoute/pull/3622) — thanks @diegosouzapw)
 
 ---
 
