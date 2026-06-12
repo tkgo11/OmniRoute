@@ -106,6 +106,51 @@ export function providerText(
   return fallback;
 }
 
+/** A single model's outcome from a `/api/models/test-all` response. */
+export interface TestAllModelOutcome {
+  status: "ok" | "error";
+  shouldHide: boolean;
+}
+
+/**
+ * Decide a model's per-row test status (the green/red icon) and whether it should
+ * be auto-hidden, from one `/api/models/test-all` result entry.
+ *
+ * Centralised so both "Test all models" handlers (ProviderDetailPageClient and
+ * PassthroughModelsSection) derive — and then apply — the same per-model status.
+ * Previously test-all only counted ok/error for a toast and never updated
+ * `modelTestStatus`, so the icons stayed blank and users could not tell which
+ * model failed (unlike the single-model ▶ test). When `autoHideFailed` is on,
+ * ANY non-ok result is auto-hidden — including rate-limited / timed-out failures
+ * (the user opted for "hide every failure").
+ */
+export function evaluateTestAllEntry(
+  entry: { status?: "ok" | "error"; rateLimited?: boolean; isTimeout?: boolean } | null | undefined,
+  autoHideFailed: boolean
+): TestAllModelOutcome {
+  const ok = entry?.status === "ok";
+  return {
+    status: ok ? "ok" : "error",
+    // User opted for "hide every failure": any non-ok result is auto-hidden when
+    // the toggle is on, including rate-limited / timed-out failures.
+    shouldHide: !ok && autoHideFailed,
+  };
+}
+
+/**
+ * "Test all models" result toast. Centralises the i18n variable contract so the
+ * call sites cannot drift from the `testAllResults` template again — the template
+ * is `"{ok} of {total} models working"`, so it MUST receive `ok` and `total`
+ * (passing `{ ok, error }` previously raised next-intl's FORMATTING_ERROR).
+ */
+export function testAllResultsText(
+  t: ProviderMessageTranslator,
+  ok: number,
+  total: number
+): string {
+  return providerText(t, "testAllResults", "{ok} of {total} models working", { ok, total });
+}
+
 export function providerCountText(
   t: ProviderMessageTranslator,
   key: string,
@@ -749,10 +794,7 @@ export function shouldSwitchToVisibleFilter(opts: {
 // ---------------------------------------------------------------------------
 // Error-type label map — shared by ConnectionRow and EditConnectionModal
 // ---------------------------------------------------------------------------
-export const ERROR_TYPE_LABELS: Record<
-  string,
-  { labelKey: string; variant: string }
-> = {
+export const ERROR_TYPE_LABELS: Record<string, { labelKey: string; variant: string }> = {
   runtime_error: { labelKey: "errorTypeRuntime", variant: "warning" },
   upstream_auth_error: { labelKey: "errorTypeUpstreamAuth", variant: "error" },
   account_deactivated: { labelKey: "Account Deactivated", variant: "error" },

@@ -24,6 +24,8 @@ import { useState, useMemo } from "react";
 import {
   formatProviderModelsErrorResponse,
   providerText,
+  testAllResultsText,
+  evaluateTestAllEntry,
   type ProviderMessageTranslator,
   type CompatByProtocolMap,
 } from "../providerPageHelpers";
@@ -89,6 +91,9 @@ export interface UseModelVisibilityHandlersReturn {
   handleClearAllModels: () => Promise<void>;
   onTestModel: (modelId: string, fullModel: string) => Promise<void>;
   handleTestAll: (targets: Array<{ modelId: string; fullModel: string }>) => Promise<void>;
+  /** Apply a model's test-all result to the per-row status icon (used by the
+   *  passthrough section, which runs its own test-all loop). */
+  onModelTestStatusChange: (modelId: string, status: "ok" | "error") => void;
 }
 
 // ──── hook ───────────────────────────────────────────────────────────────────
@@ -307,12 +312,16 @@ export function useModelVisibilityHandlers({
       } else {
         notify.error(data.error || "Model test failed");
         setModelTestStatus((prev) => ({ ...prev, [modelId]: "error" }));
-        await handleToggleModelHidden(providerStorageAlias, modelId, true);
+        // Hidden flag keyed by providerId — same as the manual eye toggle and the read
+        // (fetchProviderModelMeta). providerStorageAlias wrote it under the alias while the
+        // read looked under the canonical id, so auto-hide never reflected.
+        await handleToggleModelHidden(providerId, modelId, true);
       }
     } catch (err) {
       notify.error("Network error testing model");
       setModelTestStatus((prev) => ({ ...prev, [modelId]: "error" }));
-      await handleToggleModelHidden(providerStorageAlias, modelId, true);
+      // Hidden flag keyed by providerId (see the test-failure branch above).
+      await handleToggleModelHidden(providerId, modelId, true);
     } finally {
       setTestingModelId(null);
     }
@@ -360,24 +369,31 @@ export function useModelVisibilityHandlers({
             }).then((r) => r.json());
 
             const entry = result.results?.[fullModel];
-            if (entry?.status === "ok") {
+            const outcome = evaluateTestAllEntry(entry, autoHideFailed);
+            // Paint the per-model icon green/red, same as the single-model ▶ test.
+            setModelTestStatus((prev) => ({ ...prev, [modelId]: outcome.status }));
+            if (outcome.status === "ok") {
               ok++;
             } else {
               error++;
-              if (autoHideFailed && !entry?.rateLimited && !entry?.isTimeout) {
-                await handleToggleModelHidden(providerStorageAlias, modelId, true);
+              if (outcome.shouldHide) {
+                // Hidden flag keyed by providerId — same as the manual eye toggle and the read
+                // (fetchProviderModelMeta). providerStorageAlias wrote it under the alias while the
+                // read looked under the canonical id, so auto-hide never reflected.
+                await handleToggleModelHidden(providerId, modelId, true);
                 hiddenCount++;
               }
             }
           } catch (e) {
             error++;
+            setModelTestStatus((prev) => ({ ...prev, [modelId]: "error" }));
           }
           setTestProgress((prev) => (prev ? { done: prev.done + 1, total: prev.total } : null));
         })
       );
     }
 
-    notify.info(providerText(t, "testAllResults", "{ok} ok, {error} error", { ok, error }));
+    notify.info(testAllResultsText(t, ok, ok + error));
     if (hiddenCount > 0) {
       notify.info(providerText(t, "testAllFailedHidden", "{count} hidden", { count: hiddenCount }));
     }
@@ -407,5 +423,7 @@ export function useModelVisibilityHandlers({
     handleClearAllModels,
     onTestModel,
     handleTestAll,
+    onModelTestStatusChange: (modelId: string, status: "ok" | "error") =>
+      setModelTestStatus((prev) => ({ ...prev, [modelId]: status })),
   };
 }

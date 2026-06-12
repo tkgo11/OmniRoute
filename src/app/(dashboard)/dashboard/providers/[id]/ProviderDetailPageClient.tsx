@@ -398,6 +398,7 @@ export default function ProviderDetailPageClient() {
     handleClearAllModels,
     onTestModel,
     handleTestAll,
+    onModelTestStatusChange,
   } = useModelVisibilityHandlers({
     providerId,
     modelAliases,
@@ -656,6 +657,7 @@ export default function ProviderDetailPageClient() {
             modelFilter={modelFilter}
             testingModelId={testingModelId}
             modelTestStatus={modelTestStatus}
+            onModelTestStatusChange={onModelTestStatusChange}
             testingAll={testingAll}
             testProgress={testProgress}
             autoHideFailed={autoHideFailed}

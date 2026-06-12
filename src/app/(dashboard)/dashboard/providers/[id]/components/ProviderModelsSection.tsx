@@ -74,6 +74,7 @@ export interface ProviderModelsSectionProps {
   modelFilter: string;
   testingModelId: string | null;
   modelTestStatus: Record<string, "ok" | "error">;
+  onModelTestStatusChange: (modelId: string, status: "ok" | "error") => void;
   testingAll: boolean;
   testProgress: { done: number; total: number } | null;
   autoHideFailed: boolean;
@@ -144,6 +145,7 @@ export default function ProviderModelsSection({
   modelFilter,
   testingModelId,
   modelTestStatus,
+  onModelTestStatusChange,
   testingAll,
   testProgress,
   autoHideFailed,
@@ -329,6 +331,7 @@ export default function ProviderModelsSection({
           togglingModelId={togglingModelId}
           onTestModel={onTestModel}
           modelTestStatus={modelTestStatus}
+          onModelTestStatusChange={onModelTestStatusChange}
           testingModelId={testingModelId}
           providerId={providerId}
           connectionId={selectedConnection?.id ?? ""}
