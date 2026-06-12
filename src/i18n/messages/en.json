@@ -1085,7 +1085,15 @@
     "cliAgents": "CLI Agents",
     "cliAgentsSubtitle": "Autonomous CLI agents",
     "acpAgents": "ACP Agents",
-    "acpAgentsSubtitle": "CLIs spawned by OmniRoute"
+    "acpAgentsSubtitle": "CLIs spawned by OmniRoute",
+    "skipToContent": "Skip to content",
+    "unpinSection": "Unpin section",
+    "pinSectionOpen": "Pin section open",
+    "reloadPage": "Reload Page",
+    "dragReorderSection": "Drag to reorder section",
+    "dragReorderItem": "Drag to reorder",
+    "cannotHide": "This item cannot be hidden",
+    "alwaysVisible": "Always visible"
   },
   "webhooks": {
     "title": "Webhooks",
@@ -4007,7 +4015,6 @@
     "noConnectionsToTest": "No matching connections to test",
     "batchDeleteConfirmTitle": "Delete connections",
     "batchDeleteConfirmButton": "Delete",
-    "filterAll": "All",
     "filterActive": "Active",
     "filterError": "Error",
     "filterBanned": "Banned",
