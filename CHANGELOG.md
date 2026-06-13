@@ -54,6 +54,7 @@
 - **chore(quality): re-baseline `providerRegistry.ts` file-size** (4692→4703) after #3768's Ollama Cloud `kimi-k2.7-code` capability fix grew the file past the frozen baseline, turning the release's own Fast Quality Gates red. No source file is touched. ([#3770](https://github.com/diegosouzapw/OmniRoute/pull/3770))
 - **fix(publish): clean the `@omniroute/opencode-plugin` `node_modules` after the tsup build** — the hard links npm creates on Linux ended up in the published tarball as LINK entries, which the npm registry rejects with `E415 "Hard link is not allowed"`. The dependencies are only needed for the build, never shipped. (thanks @diegosouzapw)
 - **chore(docs): prune internal planning/spec artifacts and sync the i18n CHANGELOG to 3.8.24.** (thanks @diegosouzapw)
+- **docs: refresh root + `docs/` documentation to the current architecture** — a full codebase audit corrected stale counts/facts (MCP 43→87 tools / ~13→30 scopes, DB 45+→83 modules / 55→97 migrations, routing 14→15 strategies, A2A 5→6 skills, Node `>=22.0.0 <23 || >=24.0.0 <27`, TypeScript 6.0) across `CLAUDE.md`, `AGENTS.md`, `README.md`, and the `docs/` index, and documented the plugin marketplace, Notion/Obsidian, and embedded-services subsystems. (thanks @diegosouzapw)
 
 ---
 
