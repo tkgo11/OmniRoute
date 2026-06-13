@@ -4,7 +4,7 @@
 
 ---
 
-## [3.8.24] — TBD
+## [3.8.24] — 2026-06-13
 
 ### ✨ New Features
 
@@ -22,6 +22,7 @@
 
 ### 🐛 Fixed
 
+- **fix(combo): deep audit of the combo + quota-shared routing system** — repairs 5 dead/broken rules (streaming-USD cost recording, quota-pool usage provider resolution, provider-diversity wiring, `maxComboDepth` threading, and scoring clamp/NaN-safety incl. `connectionDensity`) and revives the dead `tierAffinity`/`specificityMatch` scoring factors — root cause was a `require()` that throws under ESM, so both factors silently collapsed to `0.5`; now a static import. Validates every auto-router strategy (cost / latency / sla-aware / lkgp / `selectWithStrategy` + aliases) and the predictive-TTFT decision, adds E2E coverage (3-hop priority failover, per-target timeout failover, real `strategy:auto` dispatch), and introduces opt-in complexity-aware routing (2026) layered over the existing specificity detector. Per-target credential+proxy isolation verified clean (`AsyncLocalStorage`). 4 TDD waves, 10 new/updated test files. ([#3779](https://github.com/diegosouzapw/OmniRoute/pull/3779) — thanks @diegosouzapw)
 - fix(anthropic): normalize sampling params under extended thinking — Claude models with extended thinking (e.g. Opus 4.8 via the Claude Code provider) returned **HTTP 400** when a request carried non-default `temperature`/`top_p` (`temperature may only be set to 1 …`, `top_p must be ≥ 0.95 or unset …`). Tools like VS Code Copilot's "Ollama" BYOK send `temperature: 0.7` + `top_p: 0.9`, so every thinking-enabled Claude request failed; the proxy now drops/normalizes these params at the chokepoint so the request succeeds. ([#3780](https://github.com/diegosouzapw/OmniRoute/pull/3780) — thanks @zhiru)
 - fix(sse): pass Claude passthrough `thinking` blocks through unchanged — the Anthropic-native Claude OAuth passthrough rewrote every assistant `thinking` block to `redacted_thinking`, which the Messages API rejects (submitted thinking blocks are validated against the original response), so every multi-turn request with extended thinking failed with `400 … thinking blocks … cannot be modified` (very visible on long Claude Code tool-loops). The blocks are now passed through verbatim; the signature is validated server-side and stays valid on replay (including across an OAuth token switch), so the redaction was unnecessary. ([#3775](https://github.com/diegosouzapw/OmniRoute/pull/3775) — thanks @havockdev)
 - fix(mcp): resolve the bundled MCP server entry from `dist/` instead of the legacy `app/` path — `omniroute --mcp` crashed on npm installs with `ERR_MODULE_NOT_FOUND: Cannot find package @/lib` because `bin/mcp-server.mjs` looked for the compiled entry under `app/` (a VPS-deploy path that never exists in the npm package) and fell back to the un-bundled `.ts`. ([#3765](https://github.com/diegosouzapw/OmniRoute/pull/3765) — thanks @megamen32)
@@ -54,6 +55,7 @@
 - **chore(quality): re-baseline `providerRegistry.ts` file-size** (4692→4703) after #3768's Ollama Cloud `kimi-k2.7-code` capability fix grew the file past the frozen baseline, turning the release's own Fast Quality Gates red. No source file is touched. ([#3770](https://github.com/diegosouzapw/OmniRoute/pull/3770))
 - **fix(publish): clean the `@omniroute/opencode-plugin` `node_modules` after the tsup build** — the hard links npm creates on Linux ended up in the published tarball as LINK entries, which the npm registry rejects with `E415 "Hard link is not allowed"`. The dependencies are only needed for the build, never shipped. (thanks @diegosouzapw)
 - **chore(docs): prune internal planning/spec artifacts and sync the i18n CHANGELOG to 3.8.24.** (thanks @diegosouzapw)
+- **test: align two unit tests left stale by this cycle's behavior changes** — `executor-codex` now asserts that GPT 5.4 Mini's `xhigh` reasoning effort passes through unchanged (the intended #3756 default; the model ships an `xhigh` catalog variant and carries no `supportsXHighEffort:false` flag) instead of the old downgrade-to-`high`, and `plugins-route-error-sanitization` now covers the new `/api/plugins/marketplace` route from #3656 (verified compliant with Hard Rule #12: imports + uses `buildErrorBody`). No production behavior change. (thanks @diegosouzapw)
 - **docs: refresh root + `docs/` documentation to the current architecture** — a full codebase audit corrected stale counts/facts (MCP 43→87 tools / ~13→30 scopes, DB 45+→83 modules / 55→97 migrations, routing 14→15 strategies, A2A 5→6 skills, Node `>=22.0.0 <23 || >=24.0.0 <27`, TypeScript 6.0) across `CLAUDE.md`, `AGENTS.md`, `README.md`, and the `docs/` index, and documented the plugin marketplace, Notion/Obsidian, and embedded-services subsystems. (thanks @diegosouzapw)
 
 ---
