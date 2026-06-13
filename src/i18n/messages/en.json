@@ -8187,6 +8187,16 @@
     "status": "Status",
     "enabled": "Enabled",
     "disabled": "Disabled",
+    "installedTab": "Installed",
+    "marketplaceTab": "Marketplace",
+    "marketplaceUrlLabel": "Custom Marketplace URL",
+    "marketplaceUrlPlaceholder": "Leave empty for official Omniroute registry",
+    "saveMarketplaceUrl": "Save & Reload",
+    "marketplaceUrlSaved": "Marketplace URL updated",
+    "marketplaceEmpty": "No plugins found in marketplace.",
+    "verified": "Verified",
+    "install": "Install",
+    "installedFromMarketplace": "Plugin {name} installed!",
     "hooks": "Hooks"
   },
   "quotaPlans": {
