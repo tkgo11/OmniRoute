@@ -1053,6 +1053,7 @@ test("createSSEStream passthrough merges Claude usage chunks and restores mapped
 
 test("#3685 createSSEStream passthrough emits SSE error (not synthetic text) for empty Claude assistant SSE", async () => {
   let failurePayload = null;
+  let completePayload = null;
   await assert.rejects(
     readTransformed(
       [
@@ -1084,6 +1085,9 @@ test("#3685 createSSEStream passthrough emits SSE error (not synthetic text) for
         onFailure(payload) {
           failurePayload = payload;
         },
+        onComplete(payload) {
+          completePayload = payload;
+        },
       }
     ),
     /empty response/i
@@ -1091,6 +1095,11 @@ test("#3685 createSSEStream passthrough emits SSE error (not synthetic text) for
   assert.ok(failurePayload, "onFailure should be called");
   assert.equal(failurePayload.status, 502);
   assert.match(failurePayload.message, /empty response/i);
+  assert.equal(failurePayload.code, "empty_response", "code must identify the failure kind");
+  assert.equal(typeof failurePayload.code, "string", "code must be a string");
+  assert.ok(failurePayload.message.length > 0, "message must be non-empty");
+  assert.ok(failurePayload.status >= 500, "status must be a server error (5xx)");
+  assert.equal(completePayload, null, "onComplete must not fire when stream is empty");
 });
 
 test("createSSEStream passthrough does not emit [DONE] for Claude SSE clients", async () => {
@@ -1151,6 +1160,7 @@ test("createSSEStream passthrough does not emit [DONE] for Claude SSE clients", 
 
 test("#3685 createSSEStream translate mode emits SSE error (not synthetic text) when OpenAI upstream finishes empty for Claude client", async () => {
   let failurePayload = null;
+  let completePayload = null;
   await assert.rejects(
     readTransformed(
       [
@@ -1182,6 +1192,9 @@ test("#3685 createSSEStream translate mode emits SSE error (not synthetic text) 
         onFailure(payload) {
           failurePayload = payload;
         },
+        onComplete(payload) {
+          completePayload = payload;
+        },
       }
     ),
     /empty response/i
@@ -1189,6 +1202,10 @@ test("#3685 createSSEStream translate mode emits SSE error (not synthetic text) 
   assert.ok(failurePayload, "onFailure should be called");
   assert.equal(failurePayload.status, 502);
   assert.match(failurePayload.message, /empty response/i);
+  assert.equal(failurePayload.code, "empty_response", "code must identify the failure kind");
+  assert.ok(failurePayload.message.length > 0, "message must be non-empty");
+  assert.ok(failurePayload.status >= 500, "status must be a server error (5xx)");
+  assert.equal(completePayload, null, "onComplete must not fire when stream is empty");
 });
 
 test("createSSETransformStreamWithLogger flushes a trailing Claude usage event without a newline", async () => {

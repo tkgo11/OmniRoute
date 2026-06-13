@@ -2329,6 +2329,12 @@ test("chatCore propagates budget errors without an executor-level emergency hop"
   assert.equal(result.success, false);
   assert.equal(result.status, 402);
   assert.equal(calls.length, 1, "no executor-level emergency hop may fire");
+  const body = (await result.response.json()) as any;
+  assert.match(String(body?.error?.message ?? ""), /insufficient funds/);
+  assert.ok(
+    !calls.some((c: any) => String(c.body?.model ?? "").includes("gpt-oss-120b")),
+    "emergency fallback model must not be called at executor level"
+  );
 });
 
 test("chatCore injects progress events into streaming responses when requested", async () => {
