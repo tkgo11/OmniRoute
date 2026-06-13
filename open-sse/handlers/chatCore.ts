@@ -5227,21 +5227,15 @@ export async function handleChatCore({
     // === Quota Share POST-hook (B/F7) — fire-and-forget, fail-open ===
     if (apiKeyInfo?.id && credentials?.connectionId) {
       try {
-        const { scheduleRecordConsumption } = await import("@/lib/quota/spendRecorder");
+        const { scheduleRecordConsumption, buildConsumptionCost } = await import(
+          "@/lib/quota/spendRecorder"
+        );
         scheduleRecordConsumption(
           {
             apiKeyId: apiKeyInfo.id,
             connectionId: credentials.connectionId,
             provider: provider ?? "unknown",
-            cost: {
-              tokens:
-                usage && typeof usage === "object"
-                  ? (((usage as Record<string, unknown>).prompt_tokens as number) ?? 0) +
-                    (((usage as Record<string, unknown>).completion_tokens as number) ?? 0)
-                  : 0,
-              usd: estimatedCost > 0 ? estimatedCost : 0,
-              requests: 1,
-            },
+            cost: buildConsumptionCost(usage, estimatedCost),
           },
           log
         );
@@ -5522,29 +5516,28 @@ export async function handleChatCore({
     }
 
     // === Quota Share POST-hook streaming (B/F7) — fire-and-forget, fail-open ===
+    // Resolve the real per-request cost (calculateCost) so USD-unit pools accrue
+    // on streaming traffic too; this previously recorded usd:0 hardcoded, which
+    // meant DeepSeek-style `usd/monthly` shared pools never blocked on streams.
     if (apiKeyInfo?.id && credentials?.connectionId && streamStatus === 200) {
-      const su = streamUsage as Record<string, unknown> | null;
       const quotaApiKeyId = apiKeyInfo.id;
       const quotaConnectionId = credentials.connectionId;
       // onStreamComplete is sync — use .then() (fire-and-forget, fail-open) instead of await
       import("@/lib/quota/spendRecorder")
-        .then(({ scheduleRecordConsumption }) => {
-          scheduleRecordConsumption(
+        .then(({ recordStreamingConsumption }) =>
+          recordStreamingConsumption(
             {
               apiKeyId: quotaApiKeyId,
               connectionId: quotaConnectionId,
-              provider: provider ?? "unknown",
-              cost: {
-                tokens: su
-                  ? (Number(su.prompt_tokens ?? 0) || 0) + (Number(su.completion_tokens ?? 0) || 0)
-                  : 0,
-                usd: 0, // estimatedCost resolved async above; omit to avoid dependency
-                requests: 1,
-              },
+              provider,
+              model,
+              streamUsage,
+              streamStatus,
+              serviceTier: effectiveServiceTier,
             },
-            log
-          );
-        })
+            { calculateCost, log }
+          )
+        )
         .catch(() => {
           // Outer fail-open — never throws to caller
         });
