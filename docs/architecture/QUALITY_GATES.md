@@ -22,89 +22,89 @@ The CI source of truth is `.github/workflows/ci.yml`.
 
 Runs on every PR to `main`. Blocks merge on failure.
 
-| Script (`npm run ...`) | Validates | Blocking |
-|---|---|---|
-| `check:node-runtime` | Node.js version is within the supported range | Yes |
-| `check:cycles` | Circular imports — all `src/` + `open-sse/` modules | Yes |
-| `check:route-validation:t06` | Zod schemas present on all routes (Tier 6 policy) | Yes |
-| `check:any-budget:t11` | `@ts-expect-error // any` count does not exceed budget (Tier 11 catraca) | Yes |
-| `check:provider-consistency` | Every provider in `providers.ts` has a matching entry in `providerRegistry.ts` (and vice-versa, within the allowlist) | Yes |
-| `check:fetch-targets` | Every `fetch("/api/...")` in client-side `src/` resolves to a real `route.ts` | Yes |
-| `check:deps` | All `npm install`-able deps across every `package.json` in the repo are in `dependency-allowlist.json`; new unpinned or slopsquatted packages flagged | Yes |
-| `check:file-size` | No source file exceeds the per-extension cap (ratchet: frozen large files in `frozen` list) | Yes |
-| `check:error-helper` | Error responses in executors/handlers use `buildErrorBody()` / `sanitizeErrorMessage()` (Hard Rule #12) | Yes |
-| `check:migration-numbering` | Migration SQL files are sequentially numbered, no gaps or duplicates | Yes |
-| `check:public-creds` | No literal OAuth `client_id`/`client_secret` or Firebase Web keys outside `publicCreds.ts` (Hard Rule #11) | Yes |
-| `check:db-rules` | No raw SQL outside `src/lib/db/` modules; no barrel-imports from `localDb.ts` (Hard Rules #2/#5) | Yes |
-| `check:known-symbols` | Provider executors, routing strategies, and translators registered in their dispatch tables match the files on disk — no orphaned or undeclared symbols | Yes |
-| `check:route-guard-membership` | Every route that spawns a child process is classified by `isLocalOnlyPath()` (Hard Rules #15/#17) | Yes |
-| `check:test-discovery` | Every `*.test.ts` / `*.spec.ts` file in the repo is collected by at least one test runner (ratchet: orphan list in `test-discovery-baseline.json` can only shrink) | Yes |
-| `check:docs-sync` | CHANGELOG version, OpenAPI version, and `llm.txt` are in sync | Yes |
-| `typecheck:core` | TypeScript compilation without errors (advisory warnings only) | Yes |
-| `typecheck:noimplicit:core` | Strict `noImplicitAny` — forward-looking; many pre-existing call sites still need annotations | **Advisory** (`continue-on-error: true`) |
+| Script (`npm run ...`)         | Validates                                                                                                                                                          | Blocking                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
+| `check:node-runtime`           | Node.js version is within the supported range                                                                                                                      | Yes                                      |
+| `check:cycles`                 | Circular imports — all `src/` + `open-sse/` modules                                                                                                                | Yes                                      |
+| `check:route-validation:t06`   | Zod schemas present on all routes (Tier 6 policy)                                                                                                                  | Yes                                      |
+| `check:any-budget:t11`         | `@ts-expect-error // any` count does not exceed budget (Tier 11 catraca)                                                                                           | Yes                                      |
+| `check:provider-consistency`   | Every provider in `providers.ts` has a matching entry in `providerRegistry.ts` (and vice-versa, within the allowlist)                                              | Yes                                      |
+| `check:fetch-targets`          | Every `fetch("/api/...")` in client-side `src/` resolves to a real `route.ts`                                                                                      | Yes                                      |
+| `check:deps`                   | All `npm install`-able deps across every `package.json` in the repo are in `dependency-allowlist.json`; new unpinned or slopsquatted packages flagged              | Yes                                      |
+| `check:file-size`              | No source file exceeds the per-extension cap (ratchet: frozen large files in `frozen` list)                                                                        | Yes                                      |
+| `check:error-helper`           | Error responses in executors/handlers use `buildErrorBody()` / `sanitizeErrorMessage()` (Hard Rule #12)                                                            | Yes                                      |
+| `check:migration-numbering`    | Migration SQL files are sequentially numbered, no gaps or duplicates                                                                                               | Yes                                      |
+| `check:public-creds`           | No literal OAuth `client_id`/`client_secret` or Firebase Web keys outside `publicCreds.ts` (Hard Rule #11)                                                         | Yes                                      |
+| `check:db-rules`               | No raw SQL outside `src/lib/db/` modules; no barrel-imports from `localDb.ts` (Hard Rules #2/#5)                                                                   | Yes                                      |
+| `check:known-symbols`          | Provider executors, routing strategies, and translators registered in their dispatch tables match the files on disk — no orphaned or undeclared symbols            | Yes                                      |
+| `check:route-guard-membership` | Every route that spawns a child process is classified by `isLocalOnlyPath()` (Hard Rules #15/#17)                                                                  | Yes                                      |
+| `check:test-discovery`         | Every `*.test.ts` / `*.spec.ts` file in the repo is collected by at least one test runner (ratchet: orphan list in `test-discovery-baseline.json` can only shrink) | Yes                                      |
+| `check:docs-sync`              | CHANGELOG version, OpenAPI version, and `llm.txt` are in sync                                                                                                      | Yes                                      |
+| `typecheck:core`               | TypeScript compilation without errors (advisory warnings only)                                                                                                     | Yes                                      |
+| `typecheck:noimplicit:core`    | Strict `noImplicitAny` — forward-looking; many pre-existing call sites still need annotations                                                                      | **Advisory** (`continue-on-error: true`) |
 
 ### Job: `quality-gate`
 
 Runs after `test-coverage`. Blocks merge on failure.
 
-| Script | Validates | Blocking |
-|---|---|---|
-| `quality:collect` | Emits `quality-metrics.json` (ESLint warning count, coverage from merged shard report) | Yes (upstream of ratchet) |
-| `quality:ratchet` | Each metric in `quality-baseline.json` has not regressed (ESLint warnings ≤ baseline; coverage ≥ baseline) | Yes |
-| `check:duplication` | Code duplication (jscpd@4) does not exceed baseline in `quality-baseline.json` | Yes |
-| `check:complexity` | File-level cyclomatic complexity does not exceed the cap | Yes |
+| Script              | Validates                                                                                                  | Blocking                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------- |
+| `quality:collect`   | Emits `quality-metrics.json` (ESLint warning count, coverage from merged shard report)                     | Yes (upstream of ratchet) |
+| `quality:ratchet`   | Each metric in `quality-baseline.json` has not regressed (ESLint warnings ≤ baseline; coverage ≥ baseline) | Yes                       |
+| `check:duplication` | Code duplication (jscpd@4) does not exceed baseline in `quality-baseline.json`                             | Yes                       |
+| `check:complexity`  | File-level cyclomatic complexity does not exceed the cap                                                   | Yes                       |
 
 ### Job: `docs-sync-strict`
 
 Runs on every PR to `main`. Blocks merge on failure.
 
-| Script | Validates | Blocking |
-|---|---|---|
-| `check:docs-all` | Meta-gate that runs the 6 sub-gates below sequentially | Yes |
-| ↳ `check:docs-sync` | CHANGELOG / OpenAPI / llm.txt version consistency | Yes |
-| ↳ `check:docs-counts` | Counts in prose (provider count, migration count, etc.) are within the ratchet window of the real counts | Yes |
-| ↳ `check:env-doc-sync` | Every env var in `.env.example` is documented in a docs table, and vice versa | Yes |
-| ↳ `check:deprecated-versions` | No deprecated version strings in docs | Yes |
-| ↳ `check:doc-links` | Internal `[text](path)` links in docs resolve to real files | Yes |
-| ↳ `check:fabricated-docs` | Routes, env vars, CLI commands, hook names, and file paths cited in docs exist in the codebase. Hard gate via `--strict`; soft-fail without flag. | Yes (via `--strict` in CI) |
-| `check:cli-i18n` | CLI command strings are present in all i18n locale files | Yes |
-| `check:openapi-coverage` | OpenAPI spec covers at least a ratcheted floor of real routes | Yes |
-| `check:openapi-security-tiers` | Security tier annotations in `openapi.yaml` are consistent with `routeGuard.ts` classifications | **Advisory** |
-| `check:openapi-routes` | Every path in `openapi.yaml` resolves to a real `route.ts` (anti-hallucination) | Yes |
-| `check:docs-symbols` | Every `/api/...` reference in `docs/**/*.md` resolves to a real `route.ts` (anti-hallucination) | Yes |
-| `i18n translation drift` | Untranslated keys in i18n locale files — warn only | **Advisory** |
+| Script                         | Validates                                                                                                                                         | Blocking                   |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `check:docs-all`               | Meta-gate that runs the 6 sub-gates below sequentially                                                                                            | Yes                        |
+| ↳ `check:docs-sync`            | CHANGELOG / OpenAPI / llm.txt version consistency                                                                                                 | Yes                        |
+| ↳ `check:docs-counts`          | Counts in prose (provider count, migration count, etc.) are within the ratchet window of the real counts                                          | Yes                        |
+| ↳ `check:env-doc-sync`         | Every env var in `.env.example` is documented in a docs table, and vice versa                                                                     | Yes                        |
+| ↳ `check:deprecated-versions`  | No deprecated version strings in docs                                                                                                             | Yes                        |
+| ↳ `check:doc-links`            | Internal markdown links in docs resolve to real files (`[text]`/`(path)` form)                                                                    | Yes                        |
+| ↳ `check:fabricated-docs`      | Routes, env vars, CLI commands, hook names, and file paths cited in docs exist in the codebase. Hard gate via `--strict`; soft-fail without flag. | Yes (via `--strict` in CI) |
+| `check:cli-i18n`               | CLI command strings are present in all i18n locale files                                                                                          | Yes                        |
+| `check:openapi-coverage`       | OpenAPI spec covers at least a ratcheted floor of real routes                                                                                     | Yes                        |
+| `check:openapi-security-tiers` | Security tier annotations in `openapi.yaml` are consistent with `routeGuard.ts` classifications                                                   | **Advisory**               |
+| `check:openapi-routes`         | Every path in `openapi.yaml` resolves to a real `route.ts` (anti-hallucination)                                                                   | Yes                        |
+| `check:docs-symbols`           | Every `/api/...` reference in `docs/**/*.md` resolves to a real `route.ts` (anti-hallucination)                                                   | Yes                        |
+| `i18n translation drift`       | Untranslated keys in i18n locale files — warn only                                                                                                | **Advisory**               |
 
 ### Job: `i18n-ui-coverage`
 
-| Script | Validates | Blocking |
-|---|---|---|
-| `check-ui-keys-coverage` (inline) | UI i18n key coverage is ≥ 65% | Yes |
+| Script                            | Validates                     | Blocking |
+| --------------------------------- | ----------------------------- | -------- |
+| `check-ui-keys-coverage` (inline) | UI i18n key coverage is ≥ 65% | Yes      |
 
 ### Job: `i18n`
 
 Full i18n validation matrix (one job per locale). Entire job is advisory.
 
-| Script | Validates | Blocking |
-|---|---|---|
+| Script                          | Validates                           | Blocking                                              |
+| ------------------------------- | ----------------------------------- | ----------------------------------------------------- |
 | `validate_translation.py quick` | Translation completeness per locale | **Advisory** (`continue-on-error: true` on whole job) |
 
 ### Job: `pr-test-policy`
 
 Runs on pull requests only.
 
-| Script | Validates | Blocking |
-|---|---|---|
-| `check:pr-test-policy` | PRs that change production code in `src/`, `open-sse/`, `electron/`, or `bin/` must include or update tests (Hard Rule #8) | Yes |
-| `check:test-masking` | Changed test files do not reduce net assert count or add `assert.ok(true)` tautologies | Yes |
+| Script                 | Validates                                                                                                                  | Blocking |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `check:pr-test-policy` | PRs that change production code in `src/`, `open-sse/`, `electron/`, or `bin/` must include or update tests (Hard Rule #8) | Yes      |
+| `check:test-masking`   | Changed test files do not reduce net assert count or add `assert.ok(true)` tautologies                                     | Yes      |
 
 ### Job: `test-vitest`
 
 Runs after `build`. Blocks merge on failure.
 
-| Suite | Validates | Blocking |
-|---|---|---|
-| `test:vitest` | MCP server (43 tools), autoCombo, cache — vitest runner | Yes |
-| `test:vitest:ui` | UI component tests — vitest runner | **Advisory** (`continue-on-error: true`) — failing until Fase 6A UI triage |
+| Suite            | Validates                                               | Blocking                                                                   |
+| ---------------- | ------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `test:vitest`    | MCP server (43 tools), autoCombo, cache — vitest runner | Yes                                                                        |
+| `test:vitest:ui` | UI component tests — vitest runner                      | **Advisory** (`continue-on-error: true`) — failing until Fase 6A UI triage |
 
 ---
 
@@ -116,13 +116,13 @@ beyond its epsilon fails the build.
 
 Current tracked metrics:
 
-| Metric | Direction | Meaning |
-|---|---|---|
-| `eslintWarnings` | `down` | ESLint warning count must not grow |
-| `coverage.statements` | `up` | Statement coverage must not fall |
-| `coverage.lines` | `up` | Line coverage must not fall |
-| `coverage.functions` | `up` | Function coverage must not fall |
-| `coverage.branches` | `up` | Branch coverage must not fall |
+| Metric                | Direction | Meaning                            |
+| --------------------- | --------- | ---------------------------------- |
+| `eslintWarnings`      | `down`    | ESLint warning count must not grow |
+| `coverage.statements` | `up`      | Statement coverage must not fall   |
+| `coverage.lines`      | `up`      | Line coverage must not fall        |
+| `coverage.functions`  | `up`      | Function coverage must not fall    |
+| `coverage.branches`   | `up`      | Branch coverage must not fall      |
 
 To update the baseline after a genuine improvement:
 
@@ -147,6 +147,7 @@ Every gate that cannot fail on pre-existing violations uses a frozen allowlist
 cannot be fixed in the same PR.**
 
 When adding an entry to an allowlist:
+
 1. Include a comment with the justification.
 2. Reference the tracking issue (e.g., `// #3498 — Phase 2 feature, not yet implemented`).
 3. Remove the entry in the same PR that fixes the violation — a stale entry that no longer
