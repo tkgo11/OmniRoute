@@ -26,6 +26,8 @@ import {
 import { getWebSessionCredentialRequirement } from "../../webSessionCredentials";
 import { useOpenRouterPresetControl } from "../OpenRouterPresetInput";
 import WebSessionCredentialGuide from "../WebSessionCredentialGuide";
+import CcCompatibleRequestDefaultsFields from "./CcCompatibleRequestDefaultsFields";
+import { assignCcCompatibleRequestDefaults } from "./ccCompatibleRequestDefaults";
 
 export interface AddApiKeyModalProps {
   isOpen: boolean;
@@ -109,6 +111,7 @@ export default function AddApiKeyModal({
     accountId: "",
     consoleApiKey: "",
     ccCompatibleContext1m: false,
+    ccCompatibleRedactThinking: false,
     passthroughModels: false,
   });
   const [validating, setValidating] = useState(false);
@@ -201,7 +204,6 @@ export default function AddApiKeyModal({
       setValidating(false);
     }
   };
-
   const copyCommandCodeValue = async (value: string | undefined, key: string) => {
     if (!value) return;
     try {
@@ -307,9 +309,7 @@ export default function AddApiKeyModal({
       } else if (isCloudflare && formData.accountId.trim()) {
         providerSpecificData.accountId = formData.accountId.trim();
       }
-      if (isCcCompatible && formData.ccCompatibleContext1m) {
-        providerSpecificData.requestDefaults = { context1m: true };
-      }
+      if (isCcCompatible) assignCcCompatibleRequestDefaults(providerSpecificData, formData);
 
       const payload = {
         name: formData.name,
@@ -675,13 +675,15 @@ export default function AddApiKeyModal({
             {(isCcCompatible || openRouterPreset.input) && (
               <div className="flex flex-col gap-4 rounded-lg border border-border/50 bg-surface/20 p-4">
                 {isCcCompatible && (
-                  <Toggle
-                    checked={formData.ccCompatibleContext1m}
-                    onChange={(checked) =>
+                  <CcCompatibleRequestDefaultsFields
+                    context1m={formData.ccCompatibleContext1m}
+                    redactThinking={formData.ccCompatibleRedactThinking}
+                    onContext1mChange={(checked) =>
                       setFormData({ ...formData, ccCompatibleContext1m: checked })
                     }
-                    label={t("ccCompatibleContext1mLabel")}
-                    description={t("ccCompatibleContext1mDescription")}
+                    onRedactThinkingChange={(checked) =>
+                      setFormData({ ...formData, ccCompatibleRedactThinking: checked })
+                    }
                   />
                 )}
                 {openRouterPreset.input}

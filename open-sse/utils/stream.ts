@@ -824,6 +824,13 @@ export function createSSEStream(options: StreamOptions = {}) {
     }
   };
 
+  let pendingRequestClearedByStream = false;
+  const clearPendingRequestFromStream = () => {
+    if (pendingRequestClearedByStream) return;
+    pendingRequestClearedByStream = true;
+    trackPendingRequest(model, provider, connectionId, false);
+  };
+
   const emitClaudeEmptyStreamErrorAndAbort = (
     controller: TransformStreamDefaultController,
     decrementPendingRequest = true
@@ -845,7 +852,7 @@ export function createSSEStream(options: StreamOptions = {}) {
       } catch {}
     }
     if (decrementPendingRequest) {
-      trackPendingRequest(model, provider, connectionId, false);
+      clearPendingRequestFromStream();
     }
     controller.error(markPendingRequestCleared(new Error(msg)));
   };
@@ -1056,7 +1063,7 @@ export function createSSEStream(options: StreamOptions = {}) {
               clearIdleTimer();
               const timeoutMsg = `[STREAM] Idle timeout: no data from ${provider || "provider"} for ${STREAM_IDLE_TIMEOUT_MS}ms (model: ${model || "unknown"})`;
               console.warn(timeoutMsg);
-              trackPendingRequest(model, provider, connectionId, false);
+              clearPendingRequestFromStream();
               appendRequestLog({
                 model,
                 provider,
@@ -1572,6 +1579,7 @@ export function createSSEStream(options: StreamOptions = {}) {
                   const delta = parsed.choices?.[0]?.delta;
                   let textualToolCallConverted = false;
                   let toolCallIdCoerced = false;
+                  let splitMixedReasoningContent = false;
 
                   // Split combined reasoning+content deltas into separate SSE events.
                   // Standard OpenAI streaming never mixes both fields in one delta;
@@ -1593,12 +1601,15 @@ export function createSSEStream(options: StreamOptions = {}) {
                     reqLogger?.appendConvertedChunk?.(rOutput);
                     controller.enqueue(encoder.encode(rOutput));
                     delete delta.reasoning_content;
+                    splitMixedReasoningContent = true;
                   }
 
                   // Track whether we need to re-serialize (separate from injectedUsage
                   // to avoid blocking subsequent finish_reason / usage mutations)
                   const needsReserialization =
-                    hadReasoningAlias || (delta?.content === "" && delta?.reasoning_content);
+                    splitMixedReasoningContent ||
+                    hadReasoningAlias ||
+                    (delta?.content === "" && delta?.reasoning_content);
 
                   // T18: Track if we saw tool calls & accumulate for call log
                   if (delta?.tool_calls && delta.tool_calls.length > 0) {
@@ -1761,7 +1772,7 @@ export function createSSEStream(options: StreamOptions = {}) {
                 } catch {}
               }
               clearIdleTimer();
-              trackPendingRequest(model, provider, connectionId, false);
+              clearPendingRequestFromStream();
               controller.error(
                 markPendingRequestCleared(new Error(failurePayload.message || "Upstream failure"))
               );
@@ -1945,7 +1956,6 @@ export function createSSEStream(options: StreamOptions = {}) {
         if (streamTimedOut) {
           return;
         }
-        trackPendingRequest(model, provider, connectionId, false);
         try {
           const remaining = decoder.decode();
           if (remaining) buffer += remaining;
@@ -1969,7 +1979,7 @@ export function createSSEStream(options: StreamOptions = {}) {
                   payload
                 ),
               emitClaudeEmptyStreamErrorAndAbort: () =>
-                emitClaudeEmptyStreamErrorAndAbort(controller, false),
+                emitClaudeEmptyStreamErrorAndAbort(controller),
               isClaudeEventPayload,
               updateClaudeEmptyResponseLifecycle: (payload: unknown) =>
                 updateClaudeEmptyResponseLifecycle(claudeEmptyResponseLifecycle, payload),
@@ -2046,7 +2056,7 @@ export function createSSEStream(options: StreamOptions = {}) {
                     bufferedPayload
                   )
                 ) {
-                  emitClaudeEmptyStreamErrorAndAbort(controller, false);
+                  emitClaudeEmptyStreamErrorAndAbort(controller);
                   return;
                 }
                 if (isClaudeEventPayload(bufferedPayload)) {
@@ -2104,7 +2114,7 @@ export function createSSEStream(options: StreamOptions = {}) {
             }
 
             if (shouldInjectClaudeEmptyResponseOnFlush(claudeEmptyResponseLifecycle)) {
-              emitClaudeEmptyStreamErrorAndAbort(controller, false);
+              emitClaudeEmptyStreamErrorAndAbort(controller);
               return;
             } else if (shouldInjectClaudeMissingFinalizersOnFlush(claudeEmptyResponseLifecycle)) {
               emitSyntheticClaudeEmptyResponse(controller, {
@@ -2272,6 +2282,8 @@ export function createSSEStream(options: StreamOptions = {}) {
                   }),
                 });
               } catch {}
+            } else {
+              clearPendingRequestFromStream();
             }
             return;
           }
@@ -2324,7 +2336,7 @@ export function createSSEStream(options: StreamOptions = {}) {
 
           if (state?.upstreamError) {
             const err = state.upstreamError;
-            trackPendingRequest(model, provider, connectionId, false);
+            clearPendingRequestFromStream();
             if (onFailure) {
               try {
                 void onFailure({
@@ -2382,7 +2394,7 @@ export function createSSEStream(options: StreamOptions = {}) {
 
           if (sourceFormat === FORMATS.CLAUDE) {
             if (shouldInjectClaudeEmptyResponseOnFlush(claudeEmptyResponseLifecycle)) {
-              emitClaudeEmptyStreamErrorAndAbort(controller, false);
+              emitClaudeEmptyStreamErrorAndAbort(controller);
               return;
             } else if (shouldInjectClaudeMissingFinalizersOnFlush(claudeEmptyResponseLifecycle)) {
               emitSyntheticClaudeEmptyResponse(controller, {
@@ -2507,6 +2519,8 @@ export function createSSEStream(options: StreamOptions = {}) {
                 }),
               });
             } catch {}
+          } else {
+            clearPendingRequestFromStream();
           }
         } catch (error) {
           console.log(`[STREAM] Error in flush (${model || "unknown"}):`, error.message || error);

@@ -295,7 +295,10 @@ function cloneBoundedChatLogPayload(value: unknown, depth = 0): unknown {
 }
 
 import { estimateSizeFast, isSmallEnoughForSemanticCache } from "../utils/estimateSize.ts";
-import { finalizeMostRecentPendingRequest } from "@/lib/usage/usageHistory.ts";
+import {
+  finalizeMostRecentPendingRequest,
+  finalizePendingRequestById,
+} from "@/lib/usage/usageHistory.ts";
 
 const MAX_LOG_BODY_CHARS = 8 * 1024; // 8KB cap for logged request/response bodies
 /**
@@ -2131,7 +2134,9 @@ export async function handleChatCore({
       });
     }
 
-    const pipelinePayloads = detailedLoggingEnabled ? reqLogger?.getPipelinePayloads?.() : null;
+    const pipelinePayloads = detailedLoggingEnabled
+      ? (reqLogger?.getPipelinePayloads?.() ?? {})
+      : null;
 
     if (pipelinePayloads) {
       if (providerRequest !== undefined && !pipelinePayloads.providerRequest) {
@@ -2300,13 +2305,11 @@ export async function handleChatCore({
   setGeminiThoughtSignatureMode(settings.antigravitySignatureCacheMode);
   const semanticCacheEnabled = settings.semanticCacheEnabled !== false;
 
-  // Create request logger for this session: sourceFormat_targetFormat_model
   const reqLogger = await createRequestLogger(sourceFormat, targetFormat, model, {
     enabled: detailedLoggingEnabled,
     captureStreamChunks: capturePipelineStreamChunks,
     maxStreamChunkBytes: getCallLogPipelineMaxSizeBytes(),
-    // Provide model/provider/connectionId so streamChunks can be attached to the
-    // in-memory pending request record before final call-log persistence.
+    requestId: pendingRequestId,
     model,
     provider: provider || undefined,
     connectionId: connectionId || credentials?.connectionId || undefined,
@@ -5521,6 +5524,24 @@ export async function handleChatCore({
     }
     effectiveServiceTier = resolveReportedServiceTier(streamResponseBody) ?? effectiveServiceTier;
 
+    try {
+      const finalizedConnId = connectionId || credentials?.connectionId || null;
+      const completedById = finalizePendingRequestById(pendingRequestId, {
+        providerResponse: providerPayload ?? streamResponseBody ?? undefined,
+        clientResponse: clientPayload ?? streamResponseBody ?? undefined,
+      });
+      if (!completedById) {
+        finalizeMostRecentPendingRequest(model, provider, finalizedConnId, {
+          providerResponse: providerPayload ?? streamResponseBody ?? undefined,
+          clientResponse: clientPayload ?? streamResponseBody ?? undefined,
+        });
+      }
+    } catch (e) {
+      try {
+        console.warn("finalizeMostRecentPendingRequest failed:", e && (e.message || e));
+      } catch {}
+    }
+
     // Track cache token metrics for streaming responses
     if (streamUsage && typeof streamUsage === "object") {
       attachCompressionUsageReceiptAfterAnalytics(streamUsage as Record<string, unknown>, "stream");
@@ -5566,25 +5587,6 @@ export async function handleChatCore({
       claudeCacheUsageMeta: cacheUsageLogMeta,
       cacheSource: "upstream",
     });
-
-    // Ensure the completed details cache is populated so the UI's fast-poll
-    // can pick up provider/client response payloads immediately after the
-    // streaming request finishes.
-    try {
-      // Finalize the most recent pending request (streaming corresponds to the last entry)
-      // Use credentials.connectionId as a fallback so finalization matches the
-      // pending request registration (which may have used credentials.connectionId).
-      const finalizedConnId = connectionId || credentials?.connectionId || null;
-      finalizeMostRecentPendingRequest(model, provider, finalizedConnId, {
-        providerResponse: providerPayload ?? streamResponseBody ?? undefined,
-        clientResponse: clientPayload ?? streamResponseBody ?? undefined,
-      });
-    } catch (e) {
-      // Best-effort — don't break the stream completion path if this fails
-      try {
-        console.warn("finalizeMostRecentPendingRequest failed:", e && (e.message || e));
-      } catch {}
-    }
 
     if (apiKeyInfo?.id && streamUsage) {
       calculateCost(provider, model, streamUsage, { serviceTier: effectiveServiceTier })
@@ -5804,9 +5806,6 @@ export async function handleChatCore({
   };
 }
 
-/**
- * Check if token is expired or about to expire
- */
 export function isTokenExpiringSoon(expiresAt, bufferMs = 5 * 60 * 1000) {
   if (!expiresAt) return false;
   const expiresAtMs = new Date(expiresAt).getTime();
