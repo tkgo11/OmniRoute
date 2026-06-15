@@ -932,7 +932,7 @@ All other providers (including custom compatible nodes) use the `DefaultExecutor
 
 ## Provider Compatibility Matrix
 
-> **Note:** The matrix below is a representative sample of the 177 registered providers in
+> **Note:** The matrix below is a representative sample of the 226 registered providers in
 > OmniRoute v3.8.0. For the canonical and continuously-updated list, refer to
 > [`docs/reference/PROVIDER_REFERENCE.md`](../reference/PROVIDER_REFERENCE.md) (auto-generated) or the source of
 > truth at `src/shared/constants/providers.ts` (Zod-validated at load).
