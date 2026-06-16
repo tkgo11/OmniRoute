@@ -4554,14 +4554,14 @@ export function generateModels(): Record<string, RegistryModel[]> {
   for (const entry of Object.values(_REGISTRY_EAGER)) {
     if (entry.models && entry.models.length > 0) {
       const key = entry.alias || entry.id;
-      // If alias already exists, don't overwrite (first wins)
+      // If alias already exists, don't overwrite (first wins).
+      // Keyed ONLY by the public alias — these keys ARE the /v1/models prefixes and
+      // the routing namespace, so a raw provider id must NOT be added here: it would
+      // surface a phantom prefix in the catalog and collide with another provider's
+      // route (e.g. id "opencode" vs the "opencode/" → opencode-zen route, #2798/#3870).
+      // Lookup by raw id is handled in getProviderModels() via the alias map instead.
       if (!models[key]) {
         models[key] = entry.models;
-      }
-      // Also store under the raw provider id so getProviderModels(id) works
-      // even when the provider has a different alias (e.g. "github" → alias "gh").
-      if (entry.alias && entry.alias !== entry.id && !models[entry.id]) {
-        models[entry.id] = entry.models;
       }
     }
   }
