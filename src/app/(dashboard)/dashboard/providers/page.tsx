@@ -184,10 +184,11 @@ export default function ProvidersPage() {
   } | null>(null);
   const [repairingEnv, setRepairingEnv] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [modelSearchQuery, setModelSearchQuery] = useState("");
   const [showFreeOnly, setShowFreeOnly] = useState(false);
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const notify = useNotificationStore();
-  const hasSearchQuery = searchQuery.trim().length > 0;
+  const hasSearchQuery = searchQuery.trim().length > 0 || modelSearchQuery.trim().length > 0;
   const sectionCategoryAliases: Record<string, string> = {
     cloud: "cloudagent",
     noauth: "no-auth",
@@ -521,7 +522,8 @@ export default function ProvidersPage() {
     oauthProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const blockedProviderSet = new Set(blockedProviders);
@@ -534,7 +536,8 @@ export default function ProvidersPage() {
     noAuthEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const apiKeyProviderEntriesAll = buildStaticProviderEntries("apikey", getProviderStats);
@@ -550,7 +553,8 @@ export default function ProvidersPage() {
     llmProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
   const aggregatorProviderEntriesAll = apiKeyProviderEntriesAll.filter((entry) =>
     AGGREGATOR_PROVIDER_IDS.has(entry.providerId)
@@ -559,7 +563,8 @@ export default function ProvidersPage() {
     aggregatorProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
   const imageProviderEntriesAll = apiKeyProviderEntriesAll.filter((entry) =>
     IMAGE_ONLY_PROVIDER_IDS.has(entry.providerId)
@@ -568,7 +573,8 @@ export default function ProvidersPage() {
     imageProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
   const enterpriseProviderEntriesAll = apiKeyProviderEntriesAll.filter((entry) =>
     ENTERPRISE_CLOUD_PROVIDER_IDS.has(entry.providerId)
@@ -577,7 +583,8 @@ export default function ProvidersPage() {
     enterpriseProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
   const videoProviderEntriesAll = apiKeyProviderEntriesAll.filter((entry) =>
     VIDEO_PROVIDER_IDS.has(entry.providerId)
@@ -586,7 +593,8 @@ export default function ProvidersPage() {
     videoProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
   const embeddingRerankProviderEntriesAll = apiKeyProviderEntriesAll.filter((entry) =>
     EMBEDDING_RERANK_PROVIDER_IDS.has(entry.providerId)
@@ -595,7 +603,8 @@ export default function ProvidersPage() {
     embeddingRerankProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const webCookieProviderEntriesAll = buildStaticProviderEntries("web-cookie", getProviderStats);
@@ -603,7 +612,8 @@ export default function ProvidersPage() {
     webCookieProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const localProviderEntriesAll = buildStaticProviderEntries("local", getProviderStats);
@@ -611,7 +621,8 @@ export default function ProvidersPage() {
     localProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const searchProviderEntriesAll = buildStaticProviderEntries("search", getProviderStats);
@@ -619,7 +630,8 @@ export default function ProvidersPage() {
     searchProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const audioProviderEntriesAll = buildStaticProviderEntries("audio", getProviderStats);
@@ -627,7 +639,8 @@ export default function ProvidersPage() {
     audioProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const cloudAgentProviderEntriesAll = buildStaticProviderEntries("cloud-agent", getProviderStats);
@@ -635,7 +648,8 @@ export default function ProvidersPage() {
     cloudAgentProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const upstreamProxyEntriesAll = buildStaticProviderEntries("upstream-proxy", getProviderStats);
@@ -643,7 +657,8 @@ export default function ProvidersPage() {
     upstreamProxyEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const compatibleProviderEntriesAll = [
@@ -673,7 +688,8 @@ export default function ProvidersPage() {
     compatibleProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const staticProviderEntriesAll = dedupeProviderEntries([
@@ -695,7 +711,9 @@ export default function ProvidersPage() {
   const freeSectionEntries = filterConfiguredProviderEntries(
     freeSectionEntriesAll,
     effectiveShowConfiguredOnly,
-    searchQuery
+    searchQuery,
+    undefined,
+    modelSearchQuery
   );
 
   // IDE providers: subset of oauth/apikey providers that are editors/IDEs with
@@ -708,7 +726,8 @@ export default function ProvidersPage() {
     ideProviderEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const oauthOnlyEntriesAll = oauthProviderEntriesAll
@@ -726,7 +745,8 @@ export default function ProvidersPage() {
     webFetchEntriesAll,
     effectiveShowConfiguredOnly,
     searchQuery,
-    showFreeOnly
+    showFreeOnly,
+    modelSearchQuery
   );
 
   const compactProviderEntries = buildCompactProviderEntriesForPage({
@@ -817,6 +837,7 @@ export default function ProvidersPage() {
         activeCategory={activeCategory}
         disabledConfigured={connections.length === 0}
         displayMode={effectiveProviderDisplayMode}
+        modelSearchQuery={modelSearchQuery}
         onBatchTest={handleBatchTest}
         onCategoryChange={(category, freeOnly) => {
           setShowFreeOnly(freeOnly);
@@ -825,6 +846,7 @@ export default function ProvidersPage() {
         onDisplayModeChange={setProviderDisplayMode}
         onNewProvider={() => router.push("/dashboard/providers/new")}
         searchQuery={searchQuery}
+        setModelSearchQuery={setModelSearchQuery}
         setSearchQuery={setSearchQuery}
         showFreeOnly={showFreeOnly}
         summaryStats={summaryStats}
