@@ -273,11 +273,11 @@ test("evaluateMasking: allowlist exempts ONLY reduction — tautology/skip still
       {
         file: "legit.test.ts",
         baseAsserts: 5,
-        headAsserts: 3, // reduction (exempt)
+        headAsserts: 3, // net reduction — exempt for allowlisted file
         baseTaut: 0,
-        headTaut: 1, // new assert.ok(true) (NOT exempt)
+        headTaut: 1, // a new tautology — NOT exempt
         baseSkips: 0,
-        headSkips: 1, // new .skip (NOT exempt)
+        headSkips: 1, // a new skip marker — NOT exempt
         baseExtTaut: 0,
         headExtTaut: 0,
       },
