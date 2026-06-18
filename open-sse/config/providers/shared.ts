@@ -206,6 +206,12 @@ export const KIMI_CODING_SHARED = {
       maxOutputTokens: 262144,
     },
     ...KIMI_K27_MODELS,
+    {
+      id: "moonshotai/kimi-k2.7-code",
+      name: "Kimi K2.7 Code",
+      contextLength: 262144,
+      maxOutputTokens: 262144,
+    },
   ] as RegistryModel[],
 } as const;
 
