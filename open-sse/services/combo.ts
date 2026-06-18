@@ -15,17 +15,12 @@ import {
   isModelLocked,
   recordModelLockoutFailure,
   recordProviderFailure,
-  isProviderFailureCode,
   isProviderExhaustedReason,
   type ProviderProfile,
 } from "./accountFallback.ts";
 import { FETCH_TIMEOUT_MS, RateLimitReason } from "../config/constants.ts";
 import { errorResponse, unavailableResponse } from "../utils/error.ts";
 import { clamp01 } from "../utils/number.ts";
-import {
-  createSSEDataLineNormalizer,
-  isKnownNonClaudeStreamPayload,
-} from "../utils/streamHelpers.ts";
 import {
   recordComboIntent,
   recordComboRequest,
@@ -83,7 +78,6 @@ import {
 } from "./autoCombo/scoring.ts";
 import { getResolvedModelCapabilities, supportsToolCalling } from "./modelCapabilities.ts";
 import { estimateTokens } from "./contextManager.ts";
-import { getReasoningTokens } from "../../src/lib/usage/tokenAccounting.ts";
 import { getSessionConnection } from "./sessionManager.ts";
 import { orderTargetsByEvalScores } from "./evalRouting.ts";
 import { generateRoutingHints } from "./manifestAdapter";
@@ -116,117 +110,54 @@ import {
   type ResilienceSettings,
 } from "../../src/lib/resilience/settings";
 import { resolveReasoningBufferedMaxTokens, toPositiveInteger } from "./reasoningTokenBuffer.ts";
+import { RESET_WINDOW_NAMES } from "./combo/types.ts";
+import type {
+  ComboRetryAfter,
+  ComboErrorBody,
+  ComboLike,
+  ComboInput,
+  ComboCollectionLike,
+  ComboLogger,
+  SingleModelTarget,
+  HandleSingleModel,
+  IsModelAvailable,
+  HandleComboChatOptions,
+  HandleRoundRobinOptions,
+  HistoricalLatencyStatsEntry,
+  AutoProviderCandidate,
+  ResolvedComboTarget,
+  ShadowRoutingConfig,
+  ComboRuntimeStep,
+} from "./combo/types.ts";
 
-// Status codes that should mark round-robin target semaphores as cooling down.
-const TRANSIENT_FOR_SEMAPHORE = [429, 502, 503, 504];
-// Patterns that signal all accounts for a provider are rate-limited / exhausted.
-// Used to detect 503 responses from handleNoCredentials so combo can fallback.
-const ALL_ACCOUNTS_RATE_LIMITED_PATTERNS = [/unavailable/i, /service temporarily unavailable/i];
+import {
+  validateResponseQuality,
+  toRetryAfterDisplayValue,
+} from "./combo/validateQuality.ts";
+import {
+  TRANSIENT_FOR_SEMAPHORE,
+  MAX_COMBO_DEPTH,
+  MAX_FALLBACK_WAIT_MS,
+  MAX_GLOBAL_ATTEMPTS,
+  isAllAccountsRateLimitedResponse,
+  isProviderCircuitOpenResult,
+  clampComboDepth,
+  shouldSkipForPredictedTtft,
+  shouldRecordProviderBreakerFailure,
+  resolveDelayMs,
+  comboModelNotFoundResponse,
+  getTargetProvider,
+  isStreamReadinessFailureErrorBody,
+  isTokenLimitBreachErrorBody,
+  toRecordedTarget,
+} from "./combo/comboPredicates.ts";
 
-function isAllAccountsRateLimitedResponse(
-  status: number,
-  contentType: string | null,
-  errorText: string
-): boolean {
-  if (status !== 503) return false;
-  if (!contentType?.includes("application/json")) return false;
-  return ALL_ACCOUNTS_RATE_LIMITED_PATTERNS.some((p) => p.test(errorText));
-}
-
-// #1731v2 guard: a provider circuit-breaker-open response (503 + `X-OmniRoute-Provider-Breaker`
-// header / `provider_circuit_open` error code, see providerCircuitOpenResponse) is an OmniRoute
-// resilience signal, NOT a per-connection upstream failure. It must keep being treated as an
-// ordinary target failure (try the next target, including same-provider ones) — so it must NOT
-// poison exhaustedConnections/exhaustedProviders, otherwise remaining same-provider targets get
-// wrongly skipped while the breaker is open.
-function isProviderCircuitOpenResult(
-  result: { headers?: Headers | null; status?: number },
-  errorText: string
-): boolean {
-  const breakerHeader = result.headers?.get?.("x-omniroute-provider-breaker");
-  if (typeof breakerHeader === "string" && breakerHeader.toLowerCase() === "open") return true;
-  return /provider_circuit_open/i.test(errorText);
-}
-
-const MAX_COMBO_DEPTH = 3;
-// Absolute safety ceiling for operator-configured nesting depth. config.maxComboDepth
-// can raise the default (3) up to this cap, or lower it, but never above — runaway
-// nested-combo expansion is a real DoS/perf risk.
-const MAX_COMBO_DEPTH_HARD_CAP = 10;
-const MAX_FALLBACK_WAIT_MS = 5000;
-const MAX_GLOBAL_ATTEMPTS = 30;
-
-/**
- * Clamp an operator-configured combo nesting depth (config.maxComboDepth) to a
- * safe integer in [1, MAX_COMBO_DEPTH_HARD_CAP]. Anything non-numeric, < 1, or
- * NaN falls back to the default MAX_COMBO_DEPTH so a bad config never disables
- * nesting or blows past the safety ceiling.
- */
-export function clampComboDepth(value: unknown): number {
-  const n = Math.floor(Number(value));
-  if (!Number.isFinite(n) || n < 1) return MAX_COMBO_DEPTH;
-  return Math.min(n, MAX_COMBO_DEPTH_HARD_CAP);
-}
-
-/** Minimum recorded requests before the predictive-TTFT breaker trusts the average. */
-const PREDICTIVE_TTFT_MIN_SAMPLES = 5;
-
-/**
- * Predictive-TTFT circuit-breaker decision: skip a target whose recent average
- * latency — measured over a statistically meaningful sample — exceeds the
- * configured ceiling, so the combo fails over before paying a slow first byte.
- * Returns false when disabled (ceiling <= 0), when there is no metric, or when
- * the sample is too small to trust.
- */
-export function shouldSkipForPredictedTtft(
-  metric: { requests?: number; avgLatencyMs?: number } | null | undefined,
-  predictiveTtftMs: number
-): boolean {
-  if (!metric || !(predictiveTtftMs > 0)) return false;
-  return (
-    (metric.requests ?? 0) >= PREDICTIVE_TTFT_MIN_SAMPLES &&
-    (metric.avgLatencyMs ?? 0) > predictiveTtftMs
-  );
-}
-
-/**
- * Decide whether a failed combo target should record a whole-provider circuit-breaker
- * failure (#1731 / #2743 gap-d). This is the consumer side of `skipProviderBreaker`:
- *
- * - Stream-readiness failures (pre-flight zombie/ping probes) never count as provider
- *   failures — they are a connection-readiness signal, not an upstream outage.
- * - Only provider-level failure codes (408/429/5xx — see `isProviderFailureCode`) count.
- * - When the next combo target is on the SAME provider, don't trip the provider breaker:
- *   a different model on that provider may still succeed.
- * - G-02 / #2743: when the fallback result carries `skipProviderBreaker` (an embedded
- *   service supervisor outage signalled via `X-Omni-Fallback-Hint: connection_cooldown`)
- *   apply connection cooldown ONLY — never trip the whole-provider breaker.
- *
- * Pure predicate so the breaker decision is unit-testable without the full combo harness.
- */
-export function shouldRecordProviderBreakerFailure(args: {
-  isStreamReadinessFailure: boolean;
-  status: number;
-  sameProviderNext: boolean;
-  skipProviderBreaker?: boolean;
-}): boolean {
-  return (
-    !args.isStreamReadinessFailure &&
-    isProviderFailureCode(args.status) &&
-    !args.sameProviderNext &&
-    !args.skipProviderBreaker
-  );
-}
-
-function resolveDelayMs(value: unknown, fallback: number): number {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue) || numericValue < 0) return fallback;
-  return numericValue;
-}
-
-function comboModelNotFoundResponse(message: string) {
-  return errorResponse(404, message);
-}
+// Backward-compatible re-exports — these were public from combo.ts before the
+// types extraction (Quality Gate v2 / Fase 9). Keep the external surface stable.
+export { RESET_WINDOW_NAMES };
+export type { SingleModelTarget, ResolvedComboTarget };
+export { validateResponseQuality };
+export { clampComboDepth, shouldSkipForPredictedTtft, shouldRecordProviderBreakerFailure };
 
 // Bootstrap defaults from ClawRouter benchmark (used when no local latency history exists yet)
 const DEFAULT_MODEL_P95_MS: Record<string, number> = {
@@ -333,146 +264,12 @@ function _unregisterExecutionCandidates(executionKeys: string[]): void {
   }
 }
 
-const RESET_WINDOW_NAMES = ["weekly", "session", "monthly"] as const;
 type ResetWindowName = (typeof RESET_WINDOW_NAMES)[number];
 type QuotaFetchCacheConfig = {
   quotaCacheTtlMs: number;
   quotaCacheMaxStaleMs: number;
 };
 type ResetWindowConfig = ReturnType<typeof resolveResetWindowConfig>;
-type ComboRetryAfter = string | number | Date;
-type ComboErrorBody = {
-  error?: { code?: string | null; message?: string | null } | string;
-  message?: string | null;
-  retryAfter?: ComboRetryAfter | null;
-} | null;
-
-type ComboLike = {
-  id?: string;
-  name: string;
-  strategy?: string | null;
-  models: unknown[];
-  config?: Record<string, unknown> | null;
-  autoConfig?: Record<string, unknown> | null;
-  context_cache_protection?: boolean | number;
-  system_message?: string | null;
-  [key: string]: unknown;
-};
-
-type ComboInput = ComboLike | Record<string, unknown>;
-
-type ComboCollectionLike = ComboInput[] | { combos?: ComboInput[] } | null | undefined;
-
-type ComboLogger = {
-  info: (...args: unknown[]) => void;
-  warn: (...args: unknown[]) => void;
-  error?: (...args: unknown[]) => void;
-  debug: (...args: unknown[]) => void;
-};
-
-export type SingleModelTarget =
-  | (ResolvedComboTarget & {
-      allowRateLimitedConnection?: boolean;
-      modelAbortSignal?: AbortSignal | null;
-    })
-  | { modelAbortSignal: AbortSignal };
-
-type HandleSingleModel = (
-  body: Record<string, unknown>,
-  modelStr: string,
-  target?: SingleModelTarget
-) => Promise<Response>;
-
-type IsModelAvailable = (
-  modelStr: string,
-  target?: ResolvedComboTarget & { allowRateLimitedConnection?: boolean }
-) => Promise<boolean> | boolean;
-
-type ComboRelayOptions = {
-  sessionId?: string | null;
-  config?: Record<string, unknown> | null;
-  [key: string]: unknown;
-};
-
-type HandleComboChatOptions = {
-  body: Record<string, unknown>;
-  combo: ComboLike;
-  handleSingleModel: HandleSingleModel;
-  isModelAvailable?: IsModelAvailable;
-  log: ComboLogger;
-  settings?: Record<string, unknown> | null;
-  allCombos?: ComboCollectionLike;
-  relayOptions?: ComboRelayOptions | null;
-  signal?: AbortSignal | null;
-  apiKeyAllowedConnections?: string[] | null;
-};
-
-type HandleRoundRobinOptions = Omit<
-  HandleComboChatOptions,
-  "relayOptions" | "apiKeyAllowedConnections"
->;
-
-type HistoricalLatencyStatsEntry = {
-  totalRequests?: number;
-  p95LatencyMs?: number;
-  latencyStdDev?: number;
-  successRate?: number;
-};
-
-type AutoProviderCandidate = ProviderCandidate & {
-  stepId: string;
-  executionKey: string;
-  modelStr: string;
-  /**
-   * When true, this candidate's auto-combo score is multiplied by
-   * QUOTA_SOFT_DEPRIORITIZE_FACTOR (B17 soft-policy penalty).
-   * Set externally when enforceQuotaShare returns deprioritize=true
-   * for the key routed through this target's connectionId.
-   */
-  quotaSoftPenalty?: boolean;
-};
-
-function toRetryAfterDisplayValue(value: ComboRetryAfter): string | Date {
-  if (typeof value !== "number") return value;
-  if (value > 0 && value < 1_000_000_000) {
-    return new Date(Date.now() + value * 1000);
-  }
-  return new Date(value);
-}
-
-export type ResolvedComboTarget = {
-  kind: "model";
-  stepId: string;
-  executionKey: string;
-  modelStr: string;
-  provider: string;
-  providerId: string | null;
-  connectionId: string | null;
-  allowedConnectionIds?: string[] | null;
-  weight: number;
-  label: string | null;
-  failoverBeforeRetry?: unknown;
-  trafficType?: "production" | "shadow";
-};
-
-type ShadowRoutingConfig = {
-  enabled: boolean;
-  targets: unknown[];
-  sampleRate: number;
-  maxTargets: number;
-  timeoutMs: number;
-};
-
-type ComboRuntimeStep =
-  | ResolvedComboTarget
-  | {
-      kind: "combo-ref";
-      stepId: string;
-      executionKey: string;
-      comboName: string;
-      weight: number;
-      label: string | null;
-    };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -502,323 +299,6 @@ function toComboLike(combo: ComboInput): ComboLike {
 function getCombosArray(allCombos: ComboCollectionLike): ComboLike[] {
   const combos = Array.isArray(allCombos) ? allCombos : allCombos?.combos || [];
   return combos.map((combo) => toComboLike(combo));
-}
-
-/**
- * Validate that a successful (HTTP 200) non-streaming response actually contains
- * meaningful content. Returns { valid: true } or { valid: false, reason }.
- *
- * Only inspects non-streaming JSON responses — streaming responses are passed through
- * because buffering the full stream would defeat the purpose of streaming.
- *
- * Checks:
- * 1. Body is valid JSON
- * 2. Has at least one choice with non-empty content or tool_calls
- */
-export async function validateResponseQuality(
-  response: Response,
-  isStreaming: boolean,
-  log: { warn?: (...args: unknown[]) => void }
-): Promise<{ valid: boolean; reason?: string; clonedResponse?: Response }> {
-  // Issue #3685: For Claude SSE streaming responses, use a BOUNDED PEEK to
-  // detect the empty-content-block pattern (content_filter stop_reason with
-  // no content_block_* events) WITHOUT de-streaming non-empty responses.
-  //
-  // Parse SSE events incrementally. Stop buffering once a content_block_* event
-  // or a known non-Claude SSE payload appears, replay the buffered prefix, then
-  // pipe the original reader so the rest of the stream keeps flowing normally.
-  // Only fail over when a complete Claude lifecycle ends without content_block.
-  //
-  // Non-text/event-stream streaming responses are not buffered at all.
-  if (isStreaming) {
-    const contentType = response.headers.get("content-type") || "";
-    if (!contentType.includes("text/event-stream")) {
-      return { valid: true };
-    }
-
-    if (!response.body) {
-      return { valid: true };
-    }
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-
-    // Raw Uint8Array chunks accumulated so far — used to replay the prefix
-    // in the returned clonedResponse.
-    const bufferedChunks: Uint8Array[] = [];
-    // Decoded text accumulated across chunks for incremental SSE parsing.
-    // Only the tail of the most-recently-processed line window remains here
-    // between iterations (incomplete lines are deferred to the next chunk).
-    let decodedSoFar = "";
-
-    // SSE lifecycle state.
-    let hasMessageStart = false;
-    let hasContentBlock = false;
-    let hasLifecycleEnd = false;
-    const sseLineNormalizer = createSSEDataLineNormalizer();
-    let pendingEventType = "";
-
-    /**
-     * Parse any complete SSE lines from `decodedSoFar`, updating lifecycle
-     * flags in the closure. The last (potentially incomplete) line is kept in
-     * `decodedSoFar` for the next iteration.
-     *
-     * Returns true when a content_block_* event is detected — the caller
-     * should stop peeking and treat the stream as non-empty.
-     */
-    function parseAccumulatedSse(): boolean {
-      const lines = decodedSoFar.split(/\r?\n/);
-      // Retain the potentially-incomplete trailing fragment.
-      decodedSoFar = lines[lines.length - 1];
-
-      for (const line of sseLineNormalizer.normalize(lines.slice(0, -1))) {
-        const trimmed = line.trim();
-
-        if (trimmed.startsWith("event:")) {
-          pendingEventType = trimmed.slice(6).trim();
-          continue;
-        }
-
-        if (!trimmed.startsWith("data:")) {
-          if (!trimmed) pendingEventType = "";
-          continue;
-        }
-
-        const data = trimmed.slice(5).trim();
-        if (!data || data === "[DONE]") continue;
-
-        let parsed: Record<string, unknown>;
-        try {
-          parsed = JSON.parse(data);
-        } catch {
-          continue;
-        }
-
-        const eventType =
-          (typeof parsed.type === "string" ? parsed.type : null) || pendingEventType || "";
-        pendingEventType = "";
-
-        if (isKnownNonClaudeStreamPayload(parsed, eventType)) {
-          return true;
-        }
-
-        switch (eventType) {
-          case "message_start":
-            hasMessageStart = true;
-            break;
-          case "content_block_start":
-          case "content_block_delta":
-          case "content_block_stop":
-            hasContentBlock = true;
-            // Signal caller to stop buffering immediately.
-            return true;
-          case "message_stop":
-            hasLifecycleEnd = true;
-            break;
-          case "message_delta": {
-            const delta = parsed.delta;
-            if (
-              delta &&
-              typeof delta === "object" &&
-              (delta as Record<string, unknown>).stop_reason != null
-            ) {
-              hasLifecycleEnd = true;
-            }
-            break;
-          }
-          default:
-            break;
-        }
-      }
-      return false;
-    }
-
-    /**
-     * Build a Response whose body first replays all bytes in `bufferedChunks`,
-     * then forwards the remainder of `readerToForward` chunk-by-chunk.
-     * Preserves the original response's status, statusText, and headers.
-     */
-    function buildReplayResponse(
-      readerToForward: ReadableStreamDefaultReader<Uint8Array>
-    ): Response {
-      // Snapshot the prefix so mutations after this point don't affect it.
-      const prefix = bufferedChunks.slice();
-      let prefixIdx = 0;
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(controller) {
-          // 1. Drain the buffered prefix one chunk at a time.
-          if (prefixIdx < prefix.length) {
-            controller.enqueue(prefix[prefixIdx++]);
-            return;
-          }
-          // 2. Forward the remainder from the original reader.
-          try {
-            const { done, value } = await readerToForward.read();
-            if (done) {
-              controller.close();
-            } else {
-              controller.enqueue(value);
-            }
-          } catch {
-            controller.close();
-          }
-        },
-      });
-      return new Response(stream, {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      });
-    }
-
-    // Main bounded-peek loop.
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-
-        if (done) {
-          // Stream finished — flush the TextDecoder and parse any remaining text.
-          const tail = decoder.decode(undefined, { stream: false });
-          if (tail) decodedSoFar += tail;
-          if (decodedSoFar.trim()) decodedSoFar += "\n\n";
-          parseAccumulatedSse();
-
-          if (hasMessageStart && hasLifecycleEnd && !hasContentBlock) {
-            // Complete Claude lifecycle with zero content blocks → failover.
-            log.warn?.(
-              "COMBO",
-              "Streaming Claude response has complete lifecycle but zero content blocks (content_filter?) — marking as invalid for combo failover"
-            );
-            return { valid: false, reason: "streaming empty content block" };
-          }
-
-          // Incomplete lifecycle or non-Claude stream — replay all buffered
-          // bytes. The reader is exhausted so the forwarding reader will
-          // immediately signal done.
-          const clonedResponse = buildReplayResponse(reader);
-          return { valid: true, clonedResponse };
-        }
-
-        // Accumulate raw bytes for potential replay.
-        bufferedChunks.push(value);
-
-        // Decode incrementally (stream:true keeps multi-byte char state).
-        decodedSoFar += decoder.decode(value, { stream: true });
-        const foundContent = parseAccumulatedSse();
-
-        if (foundContent) {
-          // A content_block_* event was found — stop peeking. Return a
-          // clonedResponse that replays all buffered bytes (the current chunk
-          // is already in bufferedChunks) and then forwards the remainder of
-          // the original reader unchanged.
-          const clonedResponse = buildReplayResponse(reader);
-          return { valid: true, clonedResponse };
-        }
-      }
-    } catch {
-      // If reading the stream fails, pass through — other mechanisms
-      // (stream readiness timeout) will catch truly broken streams.
-      return { valid: true };
-    }
-  }
-
-  const contentType = response.headers.get("content-type") || "";
-  if (!contentType.includes("application/json") && !contentType.includes("text/")) {
-    return { valid: true };
-  }
-
-  let cloned: Response;
-  try {
-    cloned = response.clone();
-  } catch {
-    return { valid: true };
-  }
-
-  let text: string;
-  try {
-    text = await cloned.text();
-  } catch {
-    return { valid: true };
-  }
-
-  if (!text || text.trim().length === 0) {
-    return { valid: false, reason: "empty response body" };
-  }
-
-  let json: Record<string, unknown>;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    if (text.startsWith("data:") || text.startsWith("event:")) return { valid: true };
-    return { valid: false, reason: "response is not valid JSON" };
-  }
-
-  const choices = json?.choices;
-  if (!Array.isArray(choices) || choices.length === 0) {
-    if (json?.output || json?.result || json?.data || json?.response) return { valid: true };
-    if (json?.error) {
-      const err = json.error as Record<string, unknown>;
-      return {
-        valid: false,
-        reason: `upstream error in 200 body: ${err?.message || JSON.stringify(json.error).substring(0, 200)}`,
-      };
-    }
-    return { valid: true };
-  }
-
-  const firstChoice = choices[0];
-  const message = firstChoice?.message || firstChoice?.delta;
-  if (!message) {
-    return { valid: false, reason: "choice has no message object" };
-  }
-
-  const content = message.content;
-  const toolCalls = message.tool_calls;
-  // Issue #2341: Reasoning models (Kimi-K2.5-TEE, GLM-5-TEE, etc.) emit their
-  // output in `reasoning_content` (or `reasoning`) with `content: null`. The
-  // validator used to flag those as empty and trigger a false-positive 502
-  // fallback. Count a non-empty reasoning_content as valid output too.
-  const reasoningContent = message.reasoning_content ?? message.reasoning;
-  const hasReasoningContent =
-    typeof reasoningContent === "string" && reasoningContent.trim().length > 0;
-  const hasContent =
-    (content !== null && content !== undefined && content !== "") || hasReasoningContent;
-  const hasToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
-
-  if (!hasContent && !hasToolCalls) {
-    return { valid: false, reason: "empty content and no tool_calls in response" };
-  }
-
-  // Issue #3587: Reasoning models (deepseek-v4-flash, nemotron, etc.) may consume
-  // ALL max_tokens for reasoning_tokens, leaving content empty. When content is
-  // empty but reasoning_content exists, and usage shows reasoning consumed nearly
-  // all completion tokens, treat as invalid so the combo loop retries with more
-  // tokens or falls back to a non-reasoning model.
-  const contentIsEmpty = content === null || content === undefined || content === "";
-  if (contentIsEmpty && hasReasoningContent && !hasToolCalls) {
-    const usage = json?.usage as Record<string, unknown> | undefined;
-    if (usage) {
-      const completionTokens = Number(usage.completion_tokens) || 0;
-      const reasoningTokens = getReasoningTokens(usage);
-      // If reasoning consumed 90%+ of completion tokens, the model ran out of
-      // budget before producing any content output.
-      if (completionTokens > 0 && reasoningTokens >= completionTokens * 0.9) {
-        return {
-          valid: false,
-          reason: `reasoning consumed ${reasoningTokens}/${completionTokens} tokens — no content output`,
-        };
-      }
-    }
-  }
-
-  return {
-    valid: true,
-    clonedResponse: new Response(text, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    }),
-  };
 }
 
 // In-memory atomic counter per combo for round-robin distribution
@@ -892,44 +372,6 @@ function recordStickyRoundRobinSuccess(
   }
 
   rrStickyTargets.set(comboName, { executionKey: target.executionKey, successCount });
-}
-
-function getTargetProvider(modelStr: string, providerId?: string | null): string {
-  const parsed = parseModel(modelStr);
-  return providerId || parsed.provider || parsed.providerAlias || "unknown";
-}
-
-function isStreamReadinessFailureErrorBody(errorBody: unknown): boolean {
-  if (!errorBody || typeof errorBody !== "object") return false;
-  const error = (errorBody as Record<string, unknown>).error;
-  if (!error || typeof error !== "object") return false;
-  const code = (error as Record<string, unknown>).code;
-  return code === "STREAM_READINESS_TIMEOUT" || code === "STREAM_EARLY_EOF";
-}
-
-/**
- * A local per-API-key token-limit breach surfaces as a 429 tagged with
- * errorCode "TOKEN_LIMIT_EXCEEDED" (see chatCore.ts Tier 2 early return). This
- * is NOT an upstream rate limit, so the combo loop must not cool the shared
- * account/provider, must not add it to transientRateLimitedProviders, and must
- * not retry it transiently — it propagates to the client as a terminal 429.
- */
-function isTokenLimitBreachErrorBody(errorBody: unknown): boolean {
-  if (!errorBody || typeof errorBody !== "object") return false;
-  const error = (errorBody as Record<string, unknown>).error;
-  if (!error || typeof error !== "object") return false;
-  return (error as Record<string, unknown>).code === "TOKEN_LIMIT_EXCEEDED";
-}
-
-function toRecordedTarget(target: ResolvedComboTarget) {
-  return {
-    executionKey: target.executionKey,
-    stepId: target.stepId,
-    provider: target.provider,
-    providerId: target.providerId,
-    connectionId: target.connectionId,
-    label: target.label,
-  };
 }
 
 function normalizeShadowRoutingConfig(config: Record<string, unknown>): ShadowRoutingConfig {
