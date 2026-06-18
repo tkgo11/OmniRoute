@@ -340,4 +340,7 @@ export const DEFAULT_ULTRA_CONFIG: UltraConfig = {
 };
 
 export type { McpAccessibilityConfig } from "./engines/mcpAccessibility/constants.ts";
-export { DEFAULT_MCP_ACCESSIBILITY_CONFIG } from "./engines/mcpAccessibility/constants.ts";
+export {
+  DEFAULT_MCP_ACCESSIBILITY_CONFIG,
+  clampMcpAccessibilityConfig,
+} from "./engines/mcpAccessibility/constants.ts";
