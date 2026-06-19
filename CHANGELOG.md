@@ -4,6 +4,12 @@
 
 ---
 
+## [3.8.30] — TBD
+
+_In development — bullets added per PR; finalized at release._
+
+---
+
 ## [3.8.29] — 2026-06-19
 
 ### ✨ New Features
