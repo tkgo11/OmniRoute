@@ -570,8 +570,10 @@ export function buildCodebaseIndex(root = ROOT) {
       else if (/\.(mjs|js|ts)$/.test(name)) {
         try {
           const content = fs.readFileSync(child, "utf8");
-          // Programmatic API: `command('foo', ...)`, `.command('bar')`
-          const m1 = content.matchAll(/\.command\(\s*['"`]([a-z][a-z0-9-]+)['"`]/g);
+          // Programmatic API: `command('foo', ...)`, `.command('bar')`, and
+          // arg-bearing forms `.command('connect <host>')` / `.command('chat [msg]')`
+          // — capture the leading subcommand token regardless of trailing args.
+          const m1 = content.matchAll(/\.command\(\s*['"`]([a-z][a-z0-9-]+)/g);
           for (const m of m1) cliCommands.add(m[1]);
           // Subcommand names: `${name}Cmd`, `name = "foo"`, etc.
           const m2 = content.matchAll(/name:\s*['"`]([a-z][a-z0-9-]+)['"`]/g);

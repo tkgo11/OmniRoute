@@ -312,3 +312,36 @@ test("ANTI-OVER-SUPPRESSION: a fabricated env var on a normal (non-negated) line
     "a fabricated env var on a plain line must still be flagged"
   );
 });
+
+test("cli-cmd: an arg-bearing `.command('connect <host>')` registration is NOT flagged", () => {
+  // The old extraction regex required the subcommand name to be immediately followed
+  // by the closing quote, so commander's arg-bearing forms (`connect <host>`,
+  // `chat [msg]`) were never indexed → a doc that referenced them was wrongly flagged.
+  const found = findingsFor({
+    files: {
+      "bin/cli/commands/connect.mjs":
+        'export function registerConnect(p) {\n  p.command("connect <host>").action(() => {});\n}\n',
+    },
+    docs: { "guides/remote.md": "You log in once with `omniroute connect <host>`.\n" },
+  });
+  assert.ok(
+    !found.has("cli-cmd::omniroute connect"),
+    "a registered arg-bearing subcommand must be recognized and not flagged"
+  );
+});
+
+test("ANTI-OVER-SUPPRESSION: an unregistered subcommand IS still flagged", () => {
+  // Broadening the regex must add precision, not blind detection: a doc that invokes
+  // a subcommand with no `.command()` registration anywhere in bin/ must remain flagged.
+  const found = findingsFor({
+    files: {
+      "bin/cli/commands/connect.mjs":
+        'export function registerConnect(p) {\n  p.command("connect <host>").action(() => {});\n}\n',
+    },
+    docs: { "guides/remote.md": "Then run `omniroute teleport <host>` to finish.\n" },
+  });
+  assert.ok(
+    found.has("cli-cmd::omniroute teleport"),
+    "an unregistered subcommand must remain flagged — precision must not blind detection"
+  );
+});
