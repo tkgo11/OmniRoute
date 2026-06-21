@@ -1,6 +1,8 @@
 import { injectMemoryAndSkills } from "./chatCore/memorySkillsInjection.ts";
 import { resolveChatCoreRequestSetup } from "./chatCore/requestSetup.ts";
 import { buildFailureUsageRecord } from "./chatCore/failureUsage.ts";
+import { extractSystemRoleMessages } from "./chatCore/claudeSystemRole.ts";
+export { extractSystemRoleMessages } from "./chatCore/claudeSystemRole.ts";
 import { checkIdempotencyCache } from "./chatCore/idempotency.ts";
 import { checkSemanticCache } from "./chatCore/semanticCache.ts";
 import { sanitizeChatRequestBody } from "./chatCore/sanitization.ts";
@@ -164,7 +166,6 @@ import {
 import {
   getModelNormalizeToolCallId,
   getModelPreserveOpenAIDeveloperRole,
-  getModelUpstreamExtraHeaders,
 } from "@/lib/localDb";
 import { getProviderCredentials, extractSessionAffinityKey } from "@/sse/services/auth";
 import { deleteSessionAccountAffinity } from "@/lib/db/sessionAccountAffinity";
@@ -181,10 +182,7 @@ import {
 } from "../utils/cacheControlPolicy.ts";
 import { getCachedSettings } from "@/lib/db/readCache";
 import { applyCodexGlobalFastServiceTier } from "@/lib/providers/codexFastTier";
-import {
-  CPA_FORCE_FAST_MODE_HEADER,
-  shouldRequestClaudeFastMode,
-} from "@/lib/providers/claudeFastMode";
+import { buildUpstreamHeadersForExecute as buildUpstreamHeadersForExecuteFor } from "./chatCore/upstreamExecuteHeaders.ts";
 import {
   resolveEffectiveServiceTier as resolveEffectiveServiceTierFor,
   resolveReportedServiceTier as resolveReportedServiceTierFor,
@@ -542,43 +540,8 @@ function buildExecutorClientHeaders(
   return Object.keys(normalized).length > 0 ? normalized : null;
 }
 
-export function extractSystemRoleMessages(payload: Record<string, unknown>): void {
-  if (!Array.isArray(payload.messages)) return;
-  const messages = payload.messages as Array<{ role?: unknown; content?: unknown }>;
-  // Treat both `system` and `developer` as system-equivalent (OpenAI's Responses
-  // API renamed system → developer). Anthropic rejects either as a chat role, so
-  // both must be lifted into the top-level `system` field — parity with the
-  // normal-path extractSystemMessagesToBody closure.
-  const isSystemRole = (role: unknown): boolean =>
-    typeof role === "string" &&
-    (role.toLowerCase() === "system" || role.toLowerCase() === "developer");
-  const systemMessages = messages.filter((m) => isSystemRole(m.role));
-  if (systemMessages.length === 0) return;
-
-  const extraBlocks: Array<Record<string, unknown>> = [];
-  for (const sm of systemMessages) {
-    if (typeof sm.content === "string" && sm.content.length > 0) {
-      extraBlocks.push({ type: "text", text: sm.content });
-    } else if (Array.isArray(sm.content)) {
-      for (const block of sm.content as Array<Record<string, unknown>>) {
-        if (block?.type === "text" && typeof block.text === "string" && block.text.length > 0) {
-          extraBlocks.push({ ...block });
-        }
-      }
-    }
-  }
-  if (extraBlocks.length > 0) {
-    const existingSystem = payload.system;
-    if (typeof existingSystem === "string" && existingSystem.length > 0) {
-      payload.system = [{ type: "text", text: existingSystem }, ...extraBlocks];
-    } else if (Array.isArray(existingSystem)) {
-      payload.system = [...(existingSystem as Array<Record<string, unknown>>), ...extraBlocks];
-    } else {
-      payload.system = extraBlocks;
-    }
-  }
-  payload.messages = messages.filter((m) => !isSystemRole(m.role));
-}
+// extractSystemRoleMessages extracted to chatCore/claudeSystemRole.ts (#3501); re-exported above so
+// existing importers (e.g. tests/unit/system-role-extraction.test.ts) keep resolving it from here.
 
 export async function handleChatCore({
   body,
@@ -1100,46 +1063,19 @@ export async function handleChatCore({
       ? credentials.providerSpecificData.customUserAgent.trim()
       : "";
 
-  const buildUpstreamHeadersForExecute = (modelToCall: string): Record<string, string> => {
-    const upstreamHeaders =
-      modelToCall === effectiveModel
-        ? {
-            ...getModelUpstreamExtraHeaders(provider || "", model || "", sourceFormat),
-            ...getModelUpstreamExtraHeaders(provider || "", resolvedModel || "", sourceFormat),
-          }
-        : (() => {
-            const r = resolveModelAlias(modelToCall);
-            return {
-              ...getModelUpstreamExtraHeaders(provider || "", modelToCall || "", sourceFormat),
-              ...getModelUpstreamExtraHeaders(provider || "", r || "", sourceFormat),
-            };
-          })();
-
-    if (connectionCustomUserAgent) {
-      upstreamHeaders["User-Agent"] = connectionCustomUserAgent;
-      if ("user-agent" in upstreamHeaders) {
-        upstreamHeaders["user-agent"] = connectionCustomUserAgent;
-      }
-    }
-
-    // Claude Fast Mode opt-in. When the user has enabled this in
-    // Settings > AI AND the target provider is the canonical Anthropic
-    // `claude` provider (Claude Code-compatible CPA bridges are excluded
-    // since they already select their own entrypoint) AND the model id
-    // matches the configured list, signal to a paired CLIProxyAPI build to
-    // rewrite the cc_entrypoint so the request can reach Anthropic Fast
-    // Mode (speed:"fast"). CPA builds that do not understand the header
-    // forward it harmlessly.
-    if (
-      provider === "claude" &&
-      typeof settings !== "undefined" &&
-      shouldRequestClaudeFastMode(settings, modelToCall)
-    ) {
-      upstreamHeaders[CPA_FORCE_FAST_MODE_HEADER] = "1";
-    }
-
-    return upstreamHeaders;
-  };
+  // Upstream extra-header building extracted to chatCore/upstreamExecuteHeaders.ts (#3501); bind the
+  // per-request inputs once and delegate so the existing call sites stay byte-identical.
+  const buildUpstreamHeadersForExecute = (modelToCall: string): Record<string, string> =>
+    buildUpstreamHeadersForExecuteFor({
+      modelToCall,
+      effectiveModel,
+      provider,
+      model,
+      resolvedModel,
+      sourceFormat,
+      connectionCustomUserAgent,
+      settings,
+    });
 
   // Default to false unless client explicitly sets stream: true (OpenAI spec compliant)
   const acceptHeader =
