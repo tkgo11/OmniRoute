@@ -29,7 +29,9 @@ import type {
   ComboLike,
   ComboLogger,
   ComboRuntimeStep,
+  NestedComboMode,
   ResolvedComboTarget,
+  ResolvedComboUnit,
 } from "./types.ts";
 
 function toTrimmedString(value: unknown): string | null {
@@ -605,6 +607,17 @@ export function resolveComboTargets(
   return allCombos
     ? resolveNestedComboTargets(combo, allCombos, new Set<string>(), 0, [], maxDepth)
     : getDirectComboTargets(combo);
+}
+
+export function resolveComboRuntimeUnits(
+  combo: ComboLike,
+  allCombos: ComboCollectionLike,
+  mode: NestedComboMode,
+  maxDepth: number = MAX_COMBO_DEPTH
+): ResolvedComboUnit[] {
+  if (mode === "flatten" || !allCombos) return resolveComboTargets(combo, allCombos, maxDepth);
+  validateComboDAG(combo.name, allCombos, new Set<string>(), 0, maxDepth);
+  return getOrderedTopLevelRuntimeSteps(combo, allCombos);
 }
 
 export function resolveWeightedStepGroups(

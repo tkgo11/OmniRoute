@@ -97,7 +97,9 @@ import type {
   SingleModelTarget,
   HandleComboChatOptions,
   HandleRoundRobinOptions,
+  NestedComboMode,
   ResolvedComboTarget,
+  ResolvedComboUnit,
   AutoProviderCandidate,
   ComboRuntimeStep,
   HistoricalLatencyStatsEntry,
@@ -132,6 +134,7 @@ import {
   getExhaustedTargetSkipReason,
 } from "./combo/comboPredicates.ts";
 import { applyComboTargetExhaustion } from "./combo/targetExhaustion.ts";
+import { executeRuntimeUnitCombo } from "./combo/runtimeUnits.ts";
 import { dedupeTargetsByExecutionKey, isRecord } from "./combo/comboData.ts";
 import {
   expandProviderWildcardsInCombo,
@@ -146,6 +149,7 @@ import {
 import {
   filterTargetsByRequestCompatibility,
   getModelContextLimitForModelString,
+  resolveComboRuntimeUnits,
   resolveComboTargets,
   resolveWeightedTargets,
   resolveWeightedStepGroups,
@@ -191,7 +195,7 @@ export { resolveShadowTargets, scheduleShadowRouting };
 // preScreenTargets was public from combo.ts before the reset-aware quota
 // extraction (combo split D7b). Keep the external surface stable.
 export { preScreenTargets };
-export { resolveComboTargets, filterTargetsByRequestCompatibility };
+export { resolveComboRuntimeUnits, resolveComboTargets, filterTargetsByRequestCompatibility };
 export {
   getComboFromData,
   getComboModelsFromData,
@@ -224,6 +228,10 @@ const MIN_HISTORY_SAMPLES = 10;
 // for auto-combo cost scoring. 0.4 = 40% output, 60% input.
 // Matches the example in GitHub issue #1812 (e.g. o3-like model: $3 input/$15 output).
 const OUTPUT_TOKEN_RATIO = 0.4;
+
+function normalizeNestedComboMode(value: unknown): NestedComboMode {
+  return value === "execute" ? "execute" : "flatten";
+}
 
 function calculateTargetContextAffinity(
   target: ResolvedComboTarget,
@@ -571,6 +579,7 @@ export async function handleComboChat({
   relayOptions,
   signal,
   apiKeyAllowedConnections = null,
+  nesting = null,
 }: HandleComboChatOptions): Promise<Response> {
   // Combo setup phase (god-file decomposition fase 1): strategy / relay / resilience /
   // universal-handoff / context-cache pinning / agent middleware / config cascade / timeout.
@@ -681,6 +690,132 @@ export async function handleComboChat({
       `Bypassing strategy — routing directly to pinned context model: ${pinnedModel}`
     );
     return handleSingleModelWithTimeout(body, pinnedModel);
+  }
+
+  const nestingContext = nesting || {
+    depth: 0,
+    maxDepth: clampComboDepth(config.maxComboDepth),
+    visitedComboNames: [combo.name],
+    rootComboName: combo.name,
+    attemptBudget: { count: 0, limit: MAX_GLOBAL_ATTEMPTS },
+  };
+  const nestedComboMode = normalizeNestedComboMode(config.nestedComboMode);
+
+  const executeModeUnits =
+    nestedComboMode === "execute" && allCombos
+      ? resolveComboRuntimeUnits(combo, allCombos, "execute", nestingContext.maxDepth)
+      : [];
+  const hasExecutableComboRef = executeModeUnits.some((unit) => unit.kind === "combo-ref");
+  const simpleExecuteStrategies = new Set([
+    "priority",
+    "round-robin",
+    "random",
+    "strict-random",
+    "weighted",
+    "fill-first",
+  ]);
+
+  if (hasExecutableComboRef && simpleExecuteStrategies.has(strategy)) {
+    let runtimeUnits = executeModeUnits;
+    let unitExecutionStrategy = strategy;
+    if (strategy === "weighted") {
+      const stickyLimit = clampStickyWeightedTargetLimit(
+        (config as Record<string, unknown>).stickyWeightedLimit
+      );
+      const stickyKey = getStickyWeightedExecutionKey(combo.name, stickyLimit);
+      const stickyUnit = stickyKey
+        ? runtimeUnits.find((unit) => unit.executionKey === stickyKey)
+        : null;
+      if (stickyUnit) {
+        runtimeUnits = [
+          stickyUnit,
+          ...runtimeUnits.filter((unit) => unit.executionKey !== stickyUnit.executionKey),
+        ];
+        unitExecutionStrategy = "priority";
+      }
+    }
+    if (strategy === "random") runtimeUnits = fisherYatesShuffle([...runtimeUnits]);
+    if (strategy === "strict-random") {
+      const key = await getNextFromDeck(
+        `combo:${combo.name}`,
+        runtimeUnits.map((unit) => unit.executionKey)
+      );
+      const selected = runtimeUnits.find((unit) => unit.executionKey === key) || runtimeUnits[0];
+      runtimeUnits = [
+        selected,
+        ...runtimeUnits.filter((unit) => unit.executionKey !== selected.executionKey),
+      ];
+    }
+    let runtimeStickyLimit: number | null = null;
+    let runtimeStickyTargets: ResolvedComboUnit[] = runtimeUnits;
+    if (strategy === "round-robin") {
+      const perComboStickyLimit = (config as Record<string, unknown>).stickyRoundRobinLimit;
+      runtimeStickyLimit = clampStickyRoundRobinTargetLimit(
+        perComboStickyLimit !== undefined && perComboStickyLimit !== null
+          ? perComboStickyLimit
+          : (settings as Record<string, unknown> | null)?.stickyRoundRobinLimit
+      );
+      const { startIndex, counter } = getStickyRoundRobinStartIndex(
+        combo.name,
+        runtimeUnits,
+        runtimeStickyLimit
+      );
+      if (runtimeStickyLimit <= 1) rrCounters.set(combo.name, counter + 1);
+      runtimeUnits = runtimeUnits.map(
+        (_, offset) => runtimeUnits[(startIndex + offset) % runtimeUnits.length]
+      );
+      runtimeStickyTargets = executeModeUnits;
+    }
+    const execution = await executeRuntimeUnitCombo({
+      body,
+      combo,
+      strategy: unitExecutionStrategy,
+      effectiveComboStrategy: strategy,
+      units: runtimeUnits,
+      handleSingleModel: handleSingleModelWithTimeout,
+      isModelAvailable,
+      log,
+      config,
+      settings,
+      allCombos,
+      signal,
+      nesting: nestingContext,
+      baseOptions: {
+        body,
+        combo,
+        handleSingleModel,
+        isModelAvailable,
+        log,
+        settings,
+        allCombos,
+        relayOptions,
+        signal,
+        apiKeyAllowedConnections,
+      },
+      runCombo: handleComboChat,
+    });
+    if (strategy === "weighted" && execution.response.ok && execution.unit) {
+      const stickyLimit = clampStickyWeightedTargetLimit(
+        (config as Record<string, unknown>).stickyWeightedLimit
+      );
+      if (stickyLimit > 1)
+        recordStickyWeightedSuccess(combo.name, execution.unit.executionKey, stickyLimit);
+    }
+    if (
+      strategy === "round-robin" &&
+      execution.response.ok &&
+      execution.unit &&
+      runtimeStickyLimit &&
+      runtimeStickyLimit > 1
+    ) {
+      recordStickyRoundRobinSuccess(
+        combo.name,
+        execution.unit,
+        runtimeStickyLimit,
+        runtimeStickyTargets
+      );
+    }
+    return execution.response;
   }
 
   // Route to round-robin handler if strategy matches
@@ -1549,6 +1684,7 @@ export async function handleComboChat({
           }
           const result = await handleSingleModelWithTimeout(attemptBody, modelStr, {
             ...targetForAttempt,
+            effectiveComboStrategy: strategy,
             failoverBeforeRetry: config.failoverBeforeRetry,
           });
 
@@ -2499,6 +2635,7 @@ async function handleRoundRobinCombo({
 
         const result = await handleSingleModel(attemptBody, modelStr, {
           ...targetForAttempt,
+          effectiveComboStrategy: "round-robin",
           failoverBeforeRetry: config.failoverBeforeRetry,
         });
 
