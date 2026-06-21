@@ -44,7 +44,8 @@ import {
 import { CORS_HEADERS } from "../utils/cors.ts";
 import { checkHeapPressureGuard } from "../utils/heapPressure.ts";
 import { normalizeHeaders } from "../utils/headers.ts";
-import { detectFormatFromEndpoint, getTargetFormat } from "../services/provider.ts";
+import { getTargetFormat } from "../services/provider.ts";
+import { resolveChatCoreRequestFormat } from "./chatCore/requestFormat.ts";
 import { injectSystemPrompt } from "../services/systemPrompt.ts";
 import { translateRequest, needsTranslation } from "../translator/index.ts";
 import { FORMATS } from "../translator/formats.ts";
@@ -70,11 +71,8 @@ import {
 import { createRequestLogger } from "../utils/requestLogger.ts";
 import { createPreparedRequestLogger, runWithCapture } from "../utils/providerRequestLogging.ts";
 import { applyResponsesPreviousResponseIdPolicy } from "../utils/responsesStatePolicy.ts";
-import {
-  getModelTargetFormat,
-  PROVIDER_ID_TO_ALIAS,
-  splitClaudeEffortSuffix,
-} from "../config/providerModels.ts";
+import { getModelTargetFormat, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.ts";
+import { applyClaudeEffortVariant } from "./chatCore/claudeEffortVariant.ts";
 import { DEFAULT_THINKING_CLAUDE_SIGNATURE } from "../config/defaultThinkingSignature.ts";
 import {
   getStripTypesForProviderModel,
@@ -549,28 +547,6 @@ function buildExecutorClientHeaders(
   return Object.keys(normalized).length > 0 ? normalized : null;
 }
 
-function isCopilotClient(
-  headers: Headers | Record<string, unknown> | null | undefined,
-  userAgent?: string | null
-) {
-  const isMatch = (value: unknown) =>
-    typeof value === "string" && value.toLowerCase().includes("copilot");
-
-  if (isMatch(userAgent)) return true;
-
-  if (headers instanceof Headers) {
-    for (const [key, value] of headers as unknown as Iterable<[string, string]>) {
-      if (isMatch(key) || isMatch(value)) return true;
-    }
-  } else if (headers && typeof headers === "object") {
-    for (const [key, value] of Object.entries(headers)) {
-      if (isMatch(key) || isMatch(value)) return true;
-    }
-  }
-
-  return false;
-}
-
 export function extractSystemRoleMessages(payload: Record<string, unknown>): void {
   if (!Array.isArray(payload.messages)) return;
   const messages = payload.messages as Array<{ role?: unknown; content?: unknown }>;
@@ -874,22 +850,17 @@ export async function handleChatCore({
     credentials.connectionId = connectionId;
   }
 
-  const endpointPath = String(clientRawRequest?.endpoint || "");
-  const sourceFormat = detectFormatFromEndpoint(body, endpointPath);
-  const isResponsesEndpoint =
-    /\/responses(?=\/|$)/i.test(endpointPath) || /^responses(?=\/|$)/i.test(endpointPath);
-  const nativeCodexPassthrough = shouldUseNativeCodexPassthrough({
-    provider,
-    sourceFormat,
+  // Endpoint/format resolution extracted to chatCore/requestFormat.ts (#3501); pure derivation
+  // from the inbound request, destructured so every downstream use stays byte-identical.
+  const {
     endpointPath,
-  });
-  const isDroidCLI =
-    userAgent?.toLowerCase().includes("droid") || userAgent?.toLowerCase().includes("codex-cli");
-  const copilotCompatibleReasoning = isCopilotClient(clientRawRequest?.headers, userAgent);
-  const clientResponseFormat =
-    sourceFormat === FORMATS.OPENAI_RESPONSES && !isResponsesEndpoint && !isDroidCLI
-      ? FORMATS.OPENAI
-      : sourceFormat;
+    sourceFormat,
+    isResponsesEndpoint,
+    nativeCodexPassthrough,
+    isDroidCLI,
+    copilotCompatibleReasoning,
+    clientResponseFormat,
+  } = resolveChatCoreRequestFormat({ clientRawRequest, body, provider, userAgent });
 
   // Check for bypass patterns (warmup, skip) - return fake response
   const bypassResponse = handleBypassRequest(body, model, userAgent);
@@ -950,30 +921,18 @@ export async function handleChatCore({
   // it into Claude thinking/effort config. An explicit client-supplied effort always
   // wins; native Claude passthrough is left untouched (it carries its own `thinking`),
   // and non-thinking base models are cleaned up later by normalizeThinkingForModel().
-  if (
-    (provider === "claude" || isClaudeCodeCompatibleProvider(provider)) &&
-    typeof effectiveModel === "string"
-  ) {
-    const { baseModel, effort } = splitClaudeEffortSuffix(effectiveModel);
-    if (effort) {
-      effectiveModel = baseModel;
-      if (body && typeof body === "object" && !Array.isArray(body)) {
-        const claudeBody = body as Record<string, unknown>;
-        claudeBody.model = baseModel;
-        if (sourceFormat !== FORMATS.CLAUDE) {
-          const explicitEffort =
-            claudeBody.reasoning_effort ??
-            (claudeBody.reasoning as Record<string, unknown> | undefined)?.effort ??
-            (claudeBody.output_config as Record<string, unknown> | undefined)?.effort;
-          if (explicitEffort === undefined || explicitEffort === null || explicitEffort === "") {
-            claudeBody.reasoning_effort = effort;
-          }
-        }
-      }
-      log?.info?.(
-        "PARAMS",
-        `Claude effort variant: stripped "-${effort}" → ${baseModel} (reasoning_effort=${effort})`
-      );
+  // Extracted to chatCore/claudeEffortVariant.ts (#3501); mutates body in place and returns the
+  // stripped model + an optional log line, keeping behaviour byte-identical.
+  {
+    const effortVariant = applyClaudeEffortVariant({
+      provider,
+      effectiveModel,
+      body,
+      sourceFormat,
+    });
+    effectiveModel = effortVariant.effectiveModel;
+    if (effortVariant.log) {
+      log?.info?.("PARAMS", effortVariant.log);
     }
   }
 
