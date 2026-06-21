@@ -44,8 +44,8 @@ import {
 import { CORS_HEADERS } from "../utils/cors.ts";
 import { checkHeapPressureGuard } from "../utils/heapPressure.ts";
 import { normalizeHeaders } from "../utils/headers.ts";
-import { getTargetFormat } from "../services/provider.ts";
 import { resolveChatCoreRequestFormat } from "./chatCore/requestFormat.ts";
+import { resolveChatCoreTargetFormat } from "./chatCore/targetFormat.ts";
 import { injectSystemPrompt } from "../services/systemPrompt.ts";
 import { translateRequest, needsTranslation } from "../translator/index.ts";
 import { FORMATS } from "../translator/formats.ts";
@@ -71,7 +71,6 @@ import {
 import { createRequestLogger } from "../utils/requestLogger.ts";
 import { createPreparedRequestLogger, runWithCapture } from "../utils/providerRequestLogging.ts";
 import { applyResponsesPreviousResponseIdPolicy } from "../utils/responsesStatePolicy.ts";
-import { getModelTargetFormat, PROVIDER_ID_TO_ALIAS } from "../config/providerModels.ts";
 import { applyClaudeEffortVariant } from "./chatCore/claudeEffortVariant.ts";
 import { DEFAULT_THINKING_CLAUDE_SIGNATURE } from "../config/defaultThinkingSignature.ts";
 import {
@@ -118,13 +117,8 @@ import {
 } from "../services/errorClassifier.ts";
 import { updateProviderConnection, getProviderConnectionById } from "@/lib/db/providers";
 import { wasRefreshTokenRotated } from "@omniroute/open-sse/services/refreshSerializer.ts";
-import {
-  recordKeyFailure,
-  recordKeySuccess,
-  trackConnectionExtraKeys,
-  connectionHasExtraKeys,
-  type KeyHealth,
-} from "../services/apiKeyRotator.ts";
+import { connectionHasExtraKeys } from "../services/apiKeyRotator.ts";
+import { recordKeyHealthStatus as recordKeyHealthStatusFor } from "./chatCore/keyHealth.ts";
 
 import {
   getCallLogPipelineCaptureStreamChunks,
@@ -733,62 +727,12 @@ export async function handleChatCore({
     }).catch(() => {});
   };
 
+  // Key-health updater extracted to chatCore/keyHealth.ts (#3501); bind the per-request log once
+  // and delegate so the existing call sites stay byte-identical.
   const recordKeyHealthStatus = (
     status: number,
     creds: Record<string, unknown> | null | undefined
-  ): void => {
-    const connId = creds?.connectionId as string | undefined;
-    if (!connId) return;
-
-    const psd = creds.providerSpecificData as Record<string, unknown> | undefined;
-    const extraKeys = (psd?.extraApiKeys as string[] | undefined) ?? [];
-    const health = psd?.apiKeyHealth as Record<string, KeyHealth> | undefined;
-    const currentKeyId = (psd?.selectedKeyId as string | undefined) ?? "primary";
-
-    trackConnectionExtraKeys(connId, extraKeys);
-
-    if (status === 401) {
-      const updatedHealth = recordKeyFailure(connId, currentKeyId);
-      log?.warn?.(
-        "AUTH",
-        `401 on connection ${connId.slice(0, 8)} - key marked as failed (failure #${updatedHealth.failures})`
-      );
-
-      // Persist health status to DB on every failure (not just invalid transitions)
-      // This ensures in-memory state survives process restarts
-      const prevStatus = health?.[currentKeyId]?.status;
-      const prevFailures = health?.[currentKeyId]?.failures ?? 0;
-      if (updatedHealth.status !== prevStatus || updatedHealth.failures !== prevFailures) {
-        updateProviderConnection(connId, {
-          providerSpecificData: {
-            ...psd,
-            apiKeyHealth: { ...health, [currentKeyId]: updatedHealth },
-          },
-        }).catch((err: unknown) => {
-          log?.error?.(
-            "DB",
-            `Failed to persist apiKeyHealth: ${err instanceof Error ? err.message : String(err)}`
-          );
-        });
-      }
-    } else if (status >= 200 && status < 300) {
-      const updatedHealth = recordKeySuccess(connId, currentKeyId);
-      const prevStatus = health?.[currentKeyId]?.status;
-      if (prevStatus === "warning" || prevStatus === "invalid") {
-        updateProviderConnection(connId, {
-          providerSpecificData: {
-            ...psd,
-            apiKeyHealth: { ...health, [currentKeyId]: updatedHealth },
-          },
-        }).catch((err: unknown) => {
-          log?.error?.(
-            "DB",
-            `Failed to persist apiKeyHealth: ${err instanceof Error ? err.message : String(err)}`
-          );
-        });
-      }
-    }
-  };
+  ): void => recordKeyHealthStatusFor(status, creds, log);
 
   const persistCodexQuotaState = async (headers: Record<string, string> | null, status = 0) => {
     if (provider !== "codex" || !connectionId || !headers) return;
@@ -936,14 +880,15 @@ export async function handleChatCore({
     }
   }
 
-  const alias = PROVIDER_ID_TO_ALIAS[provider] || provider;
-  const modelTargetFormat = getModelTargetFormat(alias, resolvedModel);
-  const targetFormat =
-    apiFormat === "responses"
-      ? FORMATS.OPENAI_RESPONSES
-      : modelTargetFormat ||
-        customModelTargetFormat ||
-        getTargetFormat(provider, credentials?.providerSpecificData);
+  // Wire target-format resolution extracted to chatCore/targetFormat.ts (#3501); `alias` is reused
+  // downstream when stripping the alias/ prefix off the upstream model id.
+  const { alias, targetFormat } = resolveChatCoreTargetFormat({
+    provider,
+    resolvedModel,
+    apiFormat,
+    customModelTargetFormat,
+    providerSpecificData: credentials?.providerSpecificData,
+  });
 
   const initialProviderRequest =
     body && typeof body === "object" && !Array.isArray(body)
