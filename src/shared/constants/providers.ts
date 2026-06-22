@@ -1,5 +1,3 @@
-// Provider definitions
-
 /**
  * Service kind — declarative tag for what a provider can do beyond basic LLM chat.
  * Affects UI filtering and playground routing; does not influence request routing.
@@ -3229,6 +3227,7 @@ export const USAGE_SUPPORTED_PROVIDERS = [
   "zai",
   "glmt",
   "opencode-go",
+  "ollama-cloud",
   "minimax",
   "minimax-cn",
   "crof",
