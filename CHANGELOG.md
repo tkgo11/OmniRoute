@@ -2,9 +2,9 @@
 
 ## [Unreleased]
 
-### 🐛 Fixed
+### Fixed
 
-- **fix(resilience): upstream retry hints toggle now also governs reset text in error bodies** — quota-reset text such as Antigravity `Resets in 160h...` and subscription quota timestamps no longer bypass the Settings → Resilience "Use upstream retry hints" switch. When the switch is disabled, those responses keep the local cooldown behavior instead of applying the upstream-provided reset window.
+- **fix(models): unknown max output limits no longer default to 8192** — Models without synced, registry, or static `maxOutputTokens` metadata now resolve the limit as unknown instead of falling back to a generic 8192-token cap. Combo compatibility filtering, reasoning max-token buffering, and Claude/Gemini request translation only clamp or inject `maxOutputTokens` when a real model cap is known; otherwise requested output limits are preserved and absent limits stay absent.
 
 ---
 
