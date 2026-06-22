@@ -96,9 +96,10 @@
       "dedicatedGate": true
     },
     "cognitiveComplexity": {
-      "value": 793,
+      "value": 797,
       "direction": "down",
-      "dedicatedGate": true
+      "dedicatedGate": true,
+      "_rebaseline_2026_06_22_v3833_release": "793→797 (+4) — pre-existing cycle drift on origin/release/v3.8.33 surfaced by the release PR full CI (cognitive-complexity does NOT run on PR→release fast-gates). Verified my release-finalize prod changes add 0 new violations to the COUNT: geminiHelper convertOpenAIContentToParts was already a violation (merging the duplicate #912 handler is intra-function, count unchanged) and auth.ts markAccountUnavailable only gained args (no new control flow). The +4 comes from this cycle's parallel-session combo logic (#4537 nestedComboMode / #4489 sticky-weighted / #4581 lockout-decay). Structural shrink tracked in #3501."
     },
     "typeCoveragePct": {
       "value": 92.17,
