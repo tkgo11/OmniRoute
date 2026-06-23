@@ -353,8 +353,10 @@ export async function handleChatCore({
   const isModelScope = () => isModelScopeProvider(provider, credentials?.providerSpecificData);
   const startTime = Date.now();
   // Per-request trace id + checkpoint helper. Lets us see exactly which await
-  // a hung request was sitting on in `[STAGE_TRACE]` log lines.
-  const traceId = Math.random().toString(36).slice(2, 8);
+  // a hung request was sitting on in `[STAGE_TRACE]` log lines. Uses crypto RNG
+  // (not Math.random) purely to satisfy CodeQL js/insecure-randomness — this id
+  // is a log-correlation token, not a security secret.
+  const traceId = globalThis.crypto.randomUUID().slice(0, 6);
 
   // Emit request.started event for real-time dashboard
   setImmediate(() => {
@@ -1126,20 +1128,21 @@ export async function handleChatCore({
         }
       }
       // Phase 4A: unified output styles (supersedes cavemanOutputMode via the back-compat shim).
-      let outputStyleResult: import("../services/compression/outputStyles/apply.ts").OutputStylesResult | null =
-        null;
+      let outputStyleResult:
+        | import("../services/compression/outputStyles/apply.ts").OutputStylesResult
+        | null = null;
       if (config.enabled) {
         try {
-          const { resolveOutputStyleSelection } = await import(
-            "../services/compression/outputStyles/backCompat.ts"
-          );
+          const { resolveOutputStyleSelection } =
+            await import("../services/compression/outputStyles/backCompat.ts");
           const selection = resolveOutputStyleSelection(config);
           if (selection.length > 0) {
-            const { applyOutputStyles } = await import(
-              "../services/compression/outputStyles/apply.ts"
-            );
+            const { applyOutputStyles } =
+              await import("../services/compression/outputStyles/apply.ts");
             const outputStyleLanguage =
-              config.languageConfig?.enabled === true ? config.languageConfig.defaultLanguage : "en";
+              config.languageConfig?.enabled === true
+                ? config.languageConfig.defaultLanguage
+                : "en";
             outputStyleResult = applyOutputStyles(
               body as Parameters<typeof applyOutputStyles>[0],
               selection,
@@ -1156,7 +1159,10 @@ export async function handleChatCore({
               outputStyleResult.skippedReason &&
               outputStyleResult.skippedReason !== "no_styles"
             ) {
-              log?.debug?.("COMPRESSION", `Output styles skipped: ${outputStyleResult.skippedReason}`);
+              log?.debug?.(
+                "COMPRESSION",
+                `Output styles skipped: ${outputStyleResult.skippedReason}`
+              );
             }
           }
         } catch (err) {
@@ -1175,7 +1181,9 @@ export async function handleChatCore({
         typeof (compressionInputBody as Record<string, unknown>)?.max_tokens === "number"
           ? ((compressionInputBody as Record<string, unknown>).max_tokens as number)
           : null;
-      let adaptiveTelemetry: import("../services/compression/adaptiveCompression/types.ts").AdaptiveTelemetry | null = null;
+      let adaptiveTelemetry:
+        | import("../services/compression/adaptiveCompression/types.ts").AdaptiveTelemetry
+        | null = null;
       const compressionPlan = selectCompressionPlan(
         config,
         compressionComboKey,
@@ -1187,7 +1195,9 @@ export async function handleChatCore({
         {
           modelContextLimit: adaptiveModelContextLimit,
           requestMaxTokens: requestMaxTokens,
-          onAdaptive: (t) => { adaptiveTelemetry = t; },
+          onAdaptive: (t) => {
+            adaptiveTelemetry = t;
+          },
         }
       );
       const mode = compressionPlan.mode as CompressionConfig["defaultMode"];
@@ -1400,12 +1410,10 @@ export async function handleChatCore({
       if (outputStyleResult) {
         void (async () => {
           try {
-            const { buildOutputStyleTelemetry } = await import(
-              "../services/compression/outputStyles/telemetry.ts"
-            );
-            const { insertCompressionRunTelemetryRow } = await import(
-              "../../src/lib/db/compressionRunTelemetry.ts"
-            );
+            const { buildOutputStyleTelemetry } =
+              await import("../services/compression/outputStyles/telemetry.ts");
+            const { insertCompressionRunTelemetryRow } =
+              await import("../../src/lib/db/compressionRunTelemetry.ts");
             const record = buildOutputStyleTelemetry({
               requestId: skillRequestId ?? traceId ?? "",
               model: effectiveModel ?? "",

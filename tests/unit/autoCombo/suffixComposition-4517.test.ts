@@ -10,7 +10,11 @@
  *
  * #4517.
  */
-import { describe, it, before, after, beforeEach } from "node:test";
+// NOTE: tests/unit/autoCombo/ is a vitest-only scope (the node:test runner in
+// test:unit:ci does not walk this dir), so this suite uses the vitest API even
+// though it asserts via node:assert. (#4753 originally landed it with node:test
+// imports → vitest reported "No test suite found" and the test ran nowhere.)
+import { describe, it, beforeAll, afterAll, beforeEach } from "vitest";
 import assert from "node:assert/strict";
 import {
   buildAutoCandidateFilter,
@@ -20,7 +24,7 @@ import {
 describe("suffixComposition :free tier (#4517)", () => {
   const ORIGINAL_ENV = { ...process.env };
 
-  before(() => {
+  beforeAll(() => {
     // Snapshot env so we can restore it after each test.
   });
 
@@ -30,7 +34,7 @@ describe("suffixComposition :free tier (#4517)", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  after(() => {
+  afterAll(() => {
     process.env = ORIGINAL_ENV;
   });
 
