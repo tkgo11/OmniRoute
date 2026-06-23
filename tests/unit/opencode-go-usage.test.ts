@@ -238,6 +238,54 @@ test("getUsageForProvider scrapes OpenCode Go dashboard quota when workspace coo
   }
 });
 
+// Regression: React SSR wraps the reset-time text in hydration comment markers
+// (<!--$--> … <!--/-->). The reset string must be fully sanitized (complete <!--...-->
+// removal, not just the two literal markers) so the reset time still parses — and so no
+// partial "<!--" survives (CodeQL js/incomplete-multi-character-sanitization).
+test("getUsageForProvider parses OpenCode Go reset-time wrapped in React hydration comments", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalWorkspace = process.env.OPENCODE_GO_WORKSPACE_ID;
+  const originalCookie = process.env.OPENCODE_GO_AUTH_COOKIE;
+
+  process.env.OPENCODE_GO_WORKSPACE_ID = "workspace-123";
+  process.env.OPENCODE_GO_AUTH_COOKIE = "auth-cookie-value";
+
+  globalThis.fetch = async () =>
+    new Response(
+      [
+        '<div data-slot="usage-item">',
+        '<span data-slot="usage-label">Rolling Usage</span>',
+        '<span data-slot="usage-value">25%</span>',
+        '<span data-slot="reset-time"><!--$-->Resets in 1 hour 30 minutes<!--/--></span>',
+        "</div>",
+      ].join(""),
+      { status: 200, headers: { "content-type": "text/html" } }
+    );
+
+  try {
+    const result = (await usage.getUsageForProvider({
+      id: "opencode-go-dashboard",
+      provider: "opencode-go",
+      apiKey: "opencode-go-key",
+    })) as {
+      quotas?: Record<string, { used: number; total: number; remainingPercentage: number }>;
+    };
+
+    // session quota resolved → the comment-wrapped reset time was sanitized and parsed
+    assert.ok(
+      result.quotas?.session,
+      "session quota should resolve from comment-wrapped reset-time"
+    );
+    assert.equal(result.quotas!.session.remainingPercentage, 75);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalWorkspace === undefined) delete process.env.OPENCODE_GO_WORKSPACE_ID;
+    else process.env.OPENCODE_GO_WORKSPACE_ID = originalWorkspace;
+    if (originalCookie === undefined) delete process.env.OPENCODE_GO_AUTH_COOKIE;
+    else process.env.OPENCODE_GO_AUTH_COOKIE = originalCookie;
+  }
+});
+
 test("getUsageForProvider returns message for invalid OpenCode Go API keys", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => new Response("nope", { status: 401 });

@@ -255,7 +255,10 @@ function parseOpenCodeGoDashboardHtml(html: string): OpenCodeGoDashboardUsage | 
       resetMatch[1] === "reset-now"
         ? 0
         : parseOpenCodeGoHumanReset(
-            resetMatch[2].replace(/<!--\$-->|<!--\/-->/g, "").replace(/Resets?\s*in\s*/i, "")
+            // Strip any HTML comment generically (React SSR emits <!--$--> / <!--/--> hydration
+            // markers) — a complete <!--...--> removal, not just the two literal markers, so no
+            // partial "<!--" can survive (js/incomplete-multi-character-sanitization).
+            resetMatch[2].replace(/<!--[\s\S]*?-->/g, "").replace(/Resets?\s*in\s*/i, "")
           );
     if (resetInSec === null || !Number.isFinite(resetInSec)) continue;
     const window = {
