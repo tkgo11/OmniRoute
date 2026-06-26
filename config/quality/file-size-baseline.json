@@ -154,8 +154,8 @@
     "open-sse/services/tokenRefresh.ts": 2090,
     "open-sse/services/usage.ts": 3454,
     "open-sse/translator/request/openai-to-gemini.ts": 870,
-    "open-sse/translator/request/openai-to-kiro.ts": 807,
-    "open-sse/translator/response/openai-responses.ts": 923,
+    "open-sse/translator/request/openai-to-kiro.ts": 814,
+    "open-sse/translator/response/openai-responses.ts": 937,
     "open-sse/utils/cursorAgentProtobuf.ts": 1521,
     "open-sse/utils/stream.ts": 2710,
     "src/app/(dashboard)/dashboard/HomePageClient.tsx": 1385,
@@ -215,7 +215,7 @@
     "src/lib/resilience/settings.ts": 841,
     "src/lib/tailscaleTunnel.ts": 1202,
     "src/lib/usage/callLogs.ts": 975,
-    "src/lib/usage/providerLimits.ts": 950,
+    "src/lib/usage/providerLimits.ts": 955,
     "src/lib/usage/usageHistory.ts": 934,
     "src/shared/components/OAuthModal.tsx": 960,
     "src/shared/components/RequestLoggerV2.tsx": 1316,
@@ -227,7 +227,8 @@
     "src/shared/services/cliRuntime.ts": 1090,
     "src/shared/validation/schemas.ts": 2523,
     "src/sse/handlers/chat.ts": 1525,
-    "src/sse/services/auth.ts": 2328
+    "src/sse/services/auth.ts": 2328,
+    "open-sse/executors/default.ts": 828
   },
   "testCap": 800,
   "testFrozen": {
@@ -249,7 +250,7 @@
     "tests/unit/deepseek-web.test.ts": 1081,
     "tests/unit/executor-antigravity.test.ts": 942,
     "tests/unit/executor-codex.test.ts": 1339,
-    "tests/unit/executor-default-base.test.ts": 1339,
+    "tests/unit/executor-default-base.test.ts": 1440,
     "tests/unit/grok-web.test.ts": 2437,
     "tests/unit/image-generation-handler.test.ts": 2019,
     "tests/unit/model-sync-route.test.ts": 1016,
@@ -272,7 +273,7 @@
     "tests/unit/translator-helper-branches.test.ts": 870,
     "tests/unit/translator-openai-responses-req.test.ts": 1050,
     "tests/unit/translator-openai-to-gemini.test.ts": 1579,
-    "tests/unit/translator-openai-to-kiro.test.ts": 918,
+    "tests/unit/translator-openai-to-kiro.test.ts": 980,
     "tests/unit/translator-resp-gemini-to-openai.test.ts": 1234,
     "tests/unit/usage-service-hardening.test.ts": 1633,
     "tests/unit/vscode-token-routes.test.ts": 1212
@@ -321,5 +322,6 @@
   "_rebaseline_2026_06_20_web_cookie_validator_shadow_fix": "validation.ts 4518->4522 (+4 = move the generic web-cookie validateWebCookieProvider dispatch from the TOP of validateProviderApiKey to a FALLBACK after SPECIALTY_VALIDATORS, plus a comment, so #4023's generic AUTH_007 ping no longer shadows the rich per-provider validators (grok-web #3474 IP-reputation/Cloudflare, chatgpt-web cf-mitigated, claude/gemini/copilot/qwen/t3-web). Restores provider-validation-specialty.test.ts (112/112) while keeping web-cookie-auth007 (5/5). Behavior fix at an existing dispatch boundary; not extractable.",
   "_rebaseline_2026_06_22_phase4b_slm_tier_ultra": "Compression Phase 4 (B) SLM tier own growth: open-sse/services/compression/strategySelector.ts 783->818 (+35 at the existing applyUltraAsync chokepoint). The no-modelPath ultra branch (previously a one-line passthrough to the sync applyCompression) now runs the two-tier resolver: it adapts the body, builds the ultraConfig (threading config.ultraEngine + preserveSystemPrompt), awaits the now-async ultraCompress (SLM Tier-B when ultraEngine===slm and the worker backend is available, else fail-open to the Tier-A heuristic), and threads result.stats.ultraTier into the returned CompressionStats so the resolved tier reaches the D0 telemetry persister. The sync applyCompression ultra branch is also re-pointed to the new pure ultraCompressHeuristic. The two-tier resolver + the pure heuristic live in open-sse/services/compression/ultra.ts and the thin SLM entry in engines/llmlingua/ultraEntry.ts (both <cap, fully unit-tested); strategySelector.ts is cohesive dispatch wiring at the existing ultra chokepoint, not extractable without hiding the dispatch boundary. Covered by tests/unit/compression/ultra-slm-tier.test.ts (applyCompressionAsync ultraTier:slm) + ultra.test.ts (39 regression) + the integration suites. Structural shrink of this file tracked in #3501.",
   "_rebaseline_2026_06_22_phase4c_adaptive_context_budget": "Compression Phase 4 (C) adaptive context-budget wiring own growth: open-sse/services/compression/strategySelector.ts 818->848 (+30 at the existing selectCompressionPlan dispatch chokepoint). selectCompressionPlan gains an 8th optional `adaptiveOptions` param (modelContextLimit/requestMaxTokens/onAdaptive sink) and, after resolveBasePlan and before the caching-aware pass, runs the PURE resolveAdaptivePlan when config.contextBudget.mode is floor|replace-autotrigger; the new adaptiveEnabled(config) helper also gates the legacy shouldAutoTrigger branch inside resolveBasePlan off when adaptive owns automatic-by-size escalation (D-C4). The escalation ladder, target computation, and the resolver itself live in open-sse/services/compression/adaptiveCompression/{computeTarget,ladder,resolveAdaptivePlan,types}.ts (all <cap, fully unit-tested by Tasks 1-4). strategySelector.ts is cohesive dispatch wiring at the existing compression chokepoint, not extractable without hiding the dispatch boundary, mirroring the prior compression rebaselines (#4217/#4210/phase4b). Covered by tests/unit/compression/adaptive-select-plan-wiring.test.ts (4 tests) + adaptive-chatcore-source-guard.test.ts (2). chatCore.ts also grows ~30 lines at the same call site (threads getTokenLimit(provider,effectiveModel) + request max_tokens into adaptiveOptions and records the adaptive telemetry block onto compression.completed) but stays under its frozen cap. Structural shrink of this file tracked in #3501.",
-  "_rebaseline_2026_06_25_rc17_pr_batch": "rc17 PR batch own growth (cohesive, not extractable): responseSanitizer.ts 1103->1122 (+19 = SanitizeOpenAIResponseOptions interface + stripReasoning option, #4678); tokenRefresh.ts 2070->2090 (+20 = codex 401 defense-in-depth unrecoverable-refresh guard, #4686); token-refresh-service.test.ts 1322->1353 (+31 = 401-unfamiliar-payload regression case, #4686); translator-openai-responses-req.test.ts 1047->1050 (+3 = reasoning_effort non-Copilot assertion update, #4688). All are the merged PRs own surgical additions at existing chokepoints."
+  "_rebaseline_2026_06_25_rc17_pr_batch": "rc17 PR batch own growth (cohesive, not extractable): responseSanitizer.ts 1103->1122 (+19 = SanitizeOpenAIResponseOptions interface + stripReasoning option, #4678); tokenRefresh.ts 2070->2090 (+20 = codex 401 defense-in-depth unrecoverable-refresh guard, #4686); token-refresh-service.test.ts 1322->1353 (+31 = 401-unfamiliar-payload regression case, #4686); translator-openai-responses-req.test.ts 1047->1050 (+3 = reasoning_effort non-Copilot assertion update, #4688). All are the merged PRs own surgical additions at existing chokepoints.",
+  "_rebaseline_2026_06_25_rc17b_leva2": "rc17 leva2 PR batch own growth (cohesive, not extractable): providerLimits.ts 950->955 (#4786 generalized accesstoken fallback); default.ts NEW frozen entry at 828 (#4729 anthropic-compatible Bearer + #4766 json_schema fallback + #4787 cline workos headers — three provider-specific header branches); openai-to-kiro.ts 807->814 (#4763 Claude-capability image gate); openai-responses.ts 923->937 (#4764 computeFinishReason guard); executor-default-base.test.ts 1339->1440 (#4766 json_schema fallback tests); translator-openai-to-kiro.test.ts 918->980 (#4763 non-Claude image gate tests)."
 }
