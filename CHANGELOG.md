@@ -8,6 +8,10 @@
 
 _In development — bullets added per PR; finalized at release._
 
+### ✨ New Features
+
+- **feat(agent-bridge): graceful cert-install fallback for containers / headless** — when the MITM root CA can't be installed into the system trust store automatically (Docker / headless / no sudo / read-only trust store), the Agent Bridge no longer hard-fails on start with a generic "Certificate install failed". It now starts in skip mode and the dashboard surfaces a platform-specific **manual-install guide** (plus a CA download link) so the operator can trust the certificate by hand. The trust-cert endpoints return a structured `{ skippable, manualGuide }` response (HTTP 200) for environment failures instead of a 500; an explicit user cancellation is still reported distinctly. ([#4546](https://github.com/diegosouzapw/OmniRoute/issues/4546) — thanks @phuchptty)
+
 ### 🔧 Bug Fixes
 
 - **fix(api): LAN/Tailscale dashboard access — `ws:` CSP scheme, GET-exempt version route, surface combo field errors** — three failures when opening the dashboard from a non-loopback host: (1) CSP `connect-src` allowed the `ws:` scheme only for loopback origins, blocking the dashboard's `ws://<lan-host>:*` Live WebSocket from LAN/Tailscale clients; the bare `ws:` scheme is now permitted (symmetric with the bare `wss:` already allowed), kept declarative in `next.config.mjs` with no global middleware (the project has none by design); (2) `GET /api/system/version` was blocked by `LOCAL_ONLY_API_PREFIXES` for all methods despite only `POST` spawning child processes (git/npm/pm2) — a new `LOCAL_ONLY_API_GET_EXEMPTIONS` set exempts safe read methods for this path while keeping `POST`/`PUT`/`PATCH`/`DELETE` strictly loopback-only; (3) `COMBO_002` validation errors only surfaced the generic message — `firstField`/`firstMessage` are now extracted from the first Zod issue and included in the response body. ([#5083](https://github.com/diegosouzapw/OmniRoute/issues/5083) — thanks @KooshaPari for the diagnosis and original PR #5084)
