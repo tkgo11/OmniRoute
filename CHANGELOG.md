@@ -8,6 +8,10 @@
 
 _In development — bullets added per PR; finalized at release._
 
+### 🔧 Bug Fixes
+
+- **command-code:** omit `max_tokens` when the client omits it so the upstream applies the model's native default, fixing `400 "expected <=200000"` on `/alpha/generate` for high-cap models; an explicit oversized client value is clamped to the 200k endpoint ceiling (#5221 — thanks @adivekar-utexas)
+
 ---
 
 ## [3.8.39] — 2026-06-28
