@@ -40,10 +40,16 @@ import {
   withCompressionEntrypointGuards,
   withCompressionEntrypointGuardsAsync,
 } from "./entrypointWrap.ts";
+import { makeMemoKey, memoLookup, memoStore, isDeterministicMode } from "./resultMemo.ts";
 export { resolveCacheAwareConfig } from "./cacheAwareConfig.ts";
 
 // Re-export so existing importers (resolver test + chatCore dynamic import) keep resolving.
-export { planFromHeader, formatCompressionMeta, formatCompressionAnnotation, buildNamedComboLookup };
+export {
+  planFromHeader,
+  formatCompressionMeta,
+  formatCompressionAnnotation,
+  buildNamedComboLookup,
+};
 
 /** Named-combo map: combo id → its stacked pipeline (operator-defined profiles). */
 type NamedCombos = Record<string, CompressionPipelineStep[]>;
@@ -267,6 +273,32 @@ function runCompression(
   if (mode === "off") {
     return { body, compressed: false, stats: null };
   }
+  if (
+    options?.config?.memoizeCompressionResults === true &&
+    // Only memoize for an explicit principal — a missing principalId would collapse
+    // authenticated callers into the shared anonymous (null) key space and let one
+    // principal receive another's cached body. No principal ⇒ skip the cache.
+    typeof options?.principalId === "string" &&
+    options.principalId.length > 0 &&
+    isDeterministicMode(mode, options.config)
+  ) {
+    const key = makeMemoKey(
+      body,
+      mode,
+      options.config,
+      options.principalId,
+      options.model,
+      options.supportsVision
+    );
+    const hit = memoLookup(key);
+    if (hit) return hit;
+    const result = runCompression({ ...body }, mode, {
+      ...options,
+      config: { ...options.config, memoizeCompressionResults: false },
+    });
+    memoStore(key, result);
+    return memoLookup(key)!;
+  }
   if (mode === "rtk") {
     return applyRtkCompression(body, {
       // Selecting the "rtk" mode IS the enable signal — run it even if the per-engine
@@ -416,6 +448,32 @@ async function runCompressionAsync(
     cachingContext?: CachingDetectionContext;
   }
 ): Promise<CompressionResult> {
+  if (
+    options?.config?.memoizeCompressionResults === true &&
+    // Only memoize for an explicit principal — a missing principalId would collapse
+    // authenticated callers into the shared anonymous (null) key space and let one
+    // principal receive another's cached body. No principal ⇒ skip the cache.
+    typeof options?.principalId === "string" &&
+    options.principalId.length > 0 &&
+    isDeterministicMode(mode, options.config)
+  ) {
+    const key = makeMemoKey(
+      body,
+      mode,
+      options.config,
+      options.principalId,
+      options.model,
+      options.supportsVision
+    );
+    const hit = memoLookup(key);
+    if (hit) return hit;
+    const result = await runCompressionAsync({ ...body }, mode, {
+      ...options,
+      config: { ...options.config, memoizeCompressionResults: false },
+    });
+    memoStore(key, result);
+    return memoLookup(key)!;
+  }
   if (mode === "stacked") {
     const adapter = adaptBodyForCompression(body);
     const result = await applyStackedCompressionAsync(
@@ -783,7 +841,10 @@ function runStackedCompression(
         continue;
       }
       mergeStackStep(acc, step.engine, result);
-      if (decideStep(result, bailout).advance && gateAdvance(result, currentBody, fidelityGate, acc, step.engine)) {
+      if (
+        decideStep(result, bailout).advance &&
+        gateAdvance(result, currentBody, fidelityGate, acc, step.engine)
+      ) {
         currentBody = result.body;
         compressed = true;
       }
@@ -867,7 +928,10 @@ async function runStackedCompressionAsync(
         continue;
       }
       mergeStackStep(acc, step.engine, result);
-      if (decideStep(result, bailout).advance && gateAdvance(result, currentBody, fidelityGate, acc, step.engine)) {
+      if (
+        decideStep(result, bailout).advance &&
+        gateAdvance(result, currentBody, fidelityGate, acc, step.engine)
+      ) {
         currentBody = result.body;
         compressed = true;
       }
