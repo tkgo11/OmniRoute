@@ -19,6 +19,11 @@ const ORIGINAL_JWT = process.env.JWT_SECRET;
 const ORIGINAL_INITIAL = process.env.INITIAL_PASSWORD;
 const ORIGINAL_AUTH_COOKIE_SECURE = process.env.AUTH_COOKIE_SECURE;
 const ORIGINAL_REQUIRE_API_KEY = process.env.REQUIRE_API_KEY;
+const ORIGINAL_OMNIROUTE_PUBLIC_BASE_URL = process.env.OMNIROUTE_PUBLIC_BASE_URL;
+const ORIGINAL_NEXT_PUBLIC_BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
+const ORIGINAL_NEXT_PUBLIC_APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+const ORIGINAL_OMNIROUTE_TRUST_PROXY = process.env.OMNIROUTE_TRUST_PROXY;
+const ORIGINAL_OMNIROUTE_PEER_STAMP_TOKEN = process.env.OMNIROUTE_PEER_STAMP_TOKEN;
 
 function resetEnvironment() {
   core.resetDbInstance();
@@ -29,6 +34,11 @@ function resetEnvironment() {
   process.env.INITIAL_PASSWORD = "pipeline-initial-password";
   process.env.REQUIRE_API_KEY = "true";
   delete process.env.AUTH_COOKIE_SECURE;
+  delete process.env.OMNIROUTE_PUBLIC_BASE_URL;
+  delete process.env.NEXT_PUBLIC_BASE_URL;
+  delete process.env.NEXT_PUBLIC_APP_URL;
+  delete process.env.OMNIROUTE_TRUST_PROXY;
+  delete process.env.OMNIROUTE_PEER_STAMP_TOKEN;
   globalThis.__omnirouteShutdown = { init: false, shuttingDown: false, activeRequests: 0 };
 }
 
@@ -63,6 +73,20 @@ test.after(() => {
   else process.env.AUTH_COOKIE_SECURE = ORIGINAL_AUTH_COOKIE_SECURE;
   if (ORIGINAL_REQUIRE_API_KEY === undefined) delete process.env.REQUIRE_API_KEY;
   else process.env.REQUIRE_API_KEY = ORIGINAL_REQUIRE_API_KEY;
+  if (ORIGINAL_OMNIROUTE_PUBLIC_BASE_URL === undefined)
+    delete process.env.OMNIROUTE_PUBLIC_BASE_URL;
+  else process.env.OMNIROUTE_PUBLIC_BASE_URL = ORIGINAL_OMNIROUTE_PUBLIC_BASE_URL;
+  if (ORIGINAL_NEXT_PUBLIC_BASE_URL === undefined) delete process.env.NEXT_PUBLIC_BASE_URL;
+  else process.env.NEXT_PUBLIC_BASE_URL = ORIGINAL_NEXT_PUBLIC_BASE_URL;
+  if (ORIGINAL_NEXT_PUBLIC_APP_URL === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+  else process.env.NEXT_PUBLIC_APP_URL = ORIGINAL_NEXT_PUBLIC_APP_URL;
+  if (ORIGINAL_OMNIROUTE_TRUST_PROXY === undefined) delete process.env.OMNIROUTE_TRUST_PROXY;
+  else process.env.OMNIROUTE_TRUST_PROXY = ORIGINAL_OMNIROUTE_TRUST_PROXY;
+  if (ORIGINAL_OMNIROUTE_PEER_STAMP_TOKEN === undefined) {
+    delete process.env.OMNIROUTE_PEER_STAMP_TOKEN;
+  } else {
+    process.env.OMNIROUTE_PEER_STAMP_TOKEN = ORIGINAL_OMNIROUTE_PEER_STAMP_TOKEN;
+  }
   globalThis.__omnirouteShutdown = { init: false, shuttingDown: false, activeRequests: 0 };
 });
 
@@ -276,6 +300,50 @@ test("runAuthzPipeline allows dashboard sessions to reach DB health management A
 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("x-omniroute-route-class"), "MANAGEMENT");
+});
+
+test("runAuthzPipeline accepts dashboard mutations from configured public origin", async () => {
+  await forceAuthRequired();
+  process.env.NEXT_PUBLIC_BASE_URL = "https://gateway.example.test";
+
+  const response = await pipeline.runAuthzPipeline(
+    request("http://omniroute:20128/api/providers/health-autopilot/actions", {
+      method: "POST",
+      headers: {
+        cookie: await dashboardCookie(),
+        origin: "https://gateway.example.test",
+        "content-type": "application/json",
+      },
+      body: "{}",
+    }),
+    { enforce: true }
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-omniroute-route-class"), "MANAGEMENT");
+});
+
+test("runAuthzPipeline rejects dashboard mutations from invalid browser origin", async () => {
+  await forceAuthRequired();
+  process.env.NEXT_PUBLIC_BASE_URL = "https://gateway.example.test";
+
+  const response = await pipeline.runAuthzPipeline(
+    request("http://omniroute:20128/api/providers/health-autopilot/actions", {
+      method: "POST",
+      headers: {
+        cookie: await dashboardCookie(),
+        origin: "https://evil.example",
+        "content-type": "application/json",
+      },
+      body: "{}",
+    }),
+    { enforce: true }
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 403);
+  assert.equal(body.error.code, "INVALID_ORIGIN");
+  assert.equal(body.error.message, "Invalid request origin");
 });
 
 test("runAuthzPipeline refreshes dashboard JWTs near expiry", async () => {
