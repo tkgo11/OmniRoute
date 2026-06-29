@@ -1135,9 +1135,13 @@ test("chat pipeline treats Accept text/event-stream as streaming mode and return
 
   globalThis.fetch = async () => buildOpenAIStreamResponse("Accept header stream");
 
+  // #5305/#5309: only a PURE `text/event-stream` Accept (without application/json)
+  // forces SSE when `stream` is omitted. A mixed `application/json, text/event-stream`
+  // Accept is the Vercel/OpenAI SDK non-stream signature and now resolves to JSON, so
+  // this SSE-opt-in test must send the pure-SSE Accept header.
   const response = await handleChat(
     buildRequest({
-      headers: { Accept: "application/json, text/event-stream" },
+      headers: { Accept: "text/event-stream" },
       body: {
         model: "openai/gpt-4o-mini",
         messages: [{ role: "user", content: "Stream via Accept" }],
