@@ -8,6 +8,10 @@
 
 _In development — bullets added per PR; finalized at release._
 
+### ✨ New Features
+
+- **cli (serve):** opt-in native **HTTPS/TLS** for `omniroute serve` — so strict-CSP Electron apps and browsers can reach OmniRoute over `https://` instead of plain `http://localhost`. Provide `--tls-cert <path> --tls-key <path>` (or `OMNIROUTE_TLS_CERT`/`OMNIROUTE_TLS_KEY`) and the standalone server terminates TLS on the same listener (no extra port/proxy); WebSocket upgrade (live dashboard + `/v1` streaming) works over `wss://` unchanged since `https.Server extends http.Server`. With no TLS flags the HTTP path is byte-identical to before; only one of cert/key, or an unreadable path, logs a warning and stays HTTP (never half-enables, never crashes). Auto-generated self-signed certs for localhost are a follow-up; for now provide an explicit cert/key (or front OmniRoute with a TLS terminator). Regression guard: `tests/unit/tls-options.test.ts`. (Bug 1C of [#5242](https://github.com/diegosouzapw/OmniRoute/issues/5242) — thanks @jonlwheat2-gif)
+
 ### 🔧 Bug Fixes
 
 - **grok-web:** forward the Cloudflare clearance cookies and stop mislabeling IP-reputation blocks as a bad cookie. "Check cookie" returned `Invalid SSO cookie` even with a valid, complete browser session — but the cookie parser was never the problem (it robustly extracts `sso`/`sso-rw` from a full DevTools header). Two real gaps fixed: **(1)** `buildGrokCookieHeader` now forwards `cf_clearance` and `__cf_bm` when pasted (it dropped them before; AIClient2API forwards them too) — strictly additive, a bare `sso` blob still yields exactly `sso=…`; **(2)** when the user supplied a `cf_clearance`, a 401 / invalid-credentials-403 from grok.com is now surfaced as an IP-reputation/anti-bot block (cf_clearance is IP+TLS+UA-pinned and can't be replayed from a different machine) instead of the misleading "Invalid SSO cookie — re-paste". A bare cookie with no clearance still gets the re-paste hint. Regression guards in `web-cookie-auth.test.ts` + `provider-validation-specialty.test.ts`. ([#5350](https://github.com/diegosouzapw/OmniRoute/issues/5350) — thanks @SeaXen)
