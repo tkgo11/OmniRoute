@@ -52,7 +52,11 @@ export function useServiceLogs(
     const url = `/api/services/${name}/logs?${params.toString()}`;
     const es = new EventSource(url);
     esRef.current = es;
-    setError(null);
+
+    // Clear any prior error once the stream actually (re)connects, rather than
+    // calling setError synchronously in the effect body (which triggers a
+    // cascading render and is flagged by react-hooks/set-state-in-effect).
+    es.addEventListener("open", () => setError(null));
 
     es.addEventListener("snapshot", (e) => {
       try {
