@@ -1,13 +1,13 @@
 ---
 title: "Stealth Guide"
-version: 3.8.2
-lastUpdated: 2026-05-13
+version: 3.8.40
+lastUpdated: 2026-06-28
 ---
 
 # Stealth Guide
 
 > **Source of truth:** `open-sse/utils/tlsClient.ts`, `open-sse/services/{chatgptTlsClient,claudeCodeCCH,claudeCodeFingerprint,claudeCodeObfuscation,claudeCodeCompatible,antigravityObfuscation}.ts`, `open-sse/config/cliFingerprints.ts`, `src/mitm/`
-> **Last updated:** 2026-05-13 — v3.8.0
+> **Last updated:** 2026-06-28 — v3.8.40
 > **Audience:** Engineers maintaining provider-specific stealth integrations.
 
 OmniRoute integrates with providers whose edges actively fingerprint non-official clients (TLS JA3/JA4, header ordering, JSON body shape, integrity tokens). This page documents the stealth surfaces OmniRoute exposes and where they are implemented.
@@ -212,16 +212,16 @@ All MITM endpoints require management auth (`requireCliToolsAuth`). The sudo pas
 
 ## User-Agent Overrides — env vars (`.env.example` section 12)
 
-| Variable                 | Default                                       |
-| ------------------------ | --------------------------------------------- |
-| `CLAUDE_USER_AGENT`      | `claude-cli/2.1.195 (external, cli)`          |
-| `CODEX_USER_AGENT`       | `codex-cli/0.142.0 (Windows 10.0.26200; x64)` |
-| `GITHUB_USER_AGENT`      | `GitHubCopilotChat/0.54.0`                    |
-| `ANTIGRAVITY_USER_AGENT` | `antigravity/2.0.1 darwin/arm64`              |
-| `KIRO_USER_AGENT`        | `AWS-SDK-JS/3.0.0 kiro-ide/1.0.0`             |
-| `QODER_USER_AGENT`       | `Qoder-Cli`                                   |
-| `QWEN_USER_AGENT`        | `QwenCode/0.19.3 (linux; x64)`                |
-| `CURSOR_USER_AGENT`      | `Cursor/3.3`                                  |
+| Variable                 | Default                                                         |
+| ------------------------ | --------------------------------------------------------------- |
+| `CLAUDE_USER_AGENT`      | `claude-cli/2.1.195 (external, cli)`                            |
+| `CODEX_USER_AGENT`       | `codex-cli/0.142.0 (Windows 10.0.26200; x64)`                   |
+| `GITHUB_USER_AGENT`      | `GitHubCopilotChat/0.54.0`                                      |
+| `ANTIGRAVITY_USER_AGENT` | `antigravity/2.0.1 linux/arm64 google-api-nodejs-client/10.3.0` |
+| `KIRO_USER_AGENT`        | `AWS-SDK-JS/3.0.0 kiro-ide/1.0.0`                               |
+| `QODER_USER_AGENT`       | `Qoder-Cli`                                                     |
+| `QWEN_USER_AGENT`        | `QwenCode/0.19.3 (linux; x64)`                                  |
+| `CURSOR_USER_AGENT`      | `Cursor/3.4`                                                    |
 
 Consumed by `open-sse/executors/base.ts::buildHeaders()` via dynamic lookup. **Bump these when providers release new CLI versions** — stale UA strings start getting rejected as outdated clients.
 

@@ -1,3 +1,9 @@
+---
+title: "AgentRouter Setup Guide"
+version: 3.8.40
+lastUpdated: 2026-06-28
+---
+
 # AgentRouter Setup Guide
 
 [AgentRouter](https://agentrouter.org) is an Anthropic-compatible relay that resells
@@ -169,7 +175,7 @@ and the feature flag is enabled.
 
 ## See also
 
-- [`docs/PROVIDERS.md`](../PROVIDERS.md) — Other provider integration notes
+- [`docs/providers/CLAUDE_WEB.md`](./CLAUDE_WEB.md) — Claude Web provider integration notes
 - [`docs/reference/FREE_TIERS.md`](../reference/FREE_TIERS.md) — Free-tier provider
   catalog
 - [`open-sse/services/claudeCodeCompatible.ts`](../../open-sse/services/claudeCodeCompatible.ts)

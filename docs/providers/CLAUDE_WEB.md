@@ -1,3 +1,9 @@
+---
+title: "Providers — Claude Web"
+version: 3.8.40
+lastUpdated: 2026-06-28
+---
+
 # Providers — Claude Web
 
 ## claude-web
@@ -77,15 +83,15 @@ claude.ai API
 
 ### Files
 
-| File                                                  | Purpose                                      |
-| ----------------------------------------------------- | -------------------------------------------- |
-| `src/shared/constants/providers.ts`                   | Provider registration (WEB_COOKIE_PROVIDERS) |
+| File                                                  | Purpose                                              |
+| ----------------------------------------------------- | ---------------------------------------------------- |
+| `src/shared/constants/providers.ts`                   | Provider registration (WEB_COOKIE_PROVIDERS)         |
 | `src/lib/providers/webCookieAuth.ts`                  | Cookie utilities (normalize/extract session cookies) |
-| `open-sse/executors/claude-web.ts`                    | Executor implementation                      |
-| `open-sse/executors/index.ts`                         | Executor registration                        |
-| `open-sse/services/claudeTlsClient.ts`                | TLS fingerprint spoofing via tls-client-node |
-| `open-sse/services/__tests__/claudeTlsClient.test.ts` | TLS client tests                             |
-| `tests/unit/claude-web.test.ts`                       | Executor tests                               |
+| `open-sse/executors/claude-web.ts`                    | Executor implementation                              |
+| `open-sse/executors/index.ts`                         | Executor registration                                |
+| `open-sse/services/claudeTlsClient.ts`                | TLS fingerprint spoofing via tls-client-node         |
+| `open-sse/services/__tests__/claudeTlsClient.test.ts` | TLS client tests                                     |
+| `tests/unit/claude-web.test.ts`                       | Executor tests                                       |
 
 ### Testing
 
