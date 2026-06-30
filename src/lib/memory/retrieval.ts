@@ -6,6 +6,7 @@ import { sanitizeErrorMessage } from "../../../open-sse/utils/error.ts";
 import { resolveEmbeddingSource, embed } from "./embedding";
 import { getVectorStore } from "./vectorStore";
 import { getMemorySettings } from "./settings";
+import { recordMemoryAccess } from "./store";
 import { stats as embeddingCacheStats } from "./embedding/cache";
 import { getQdrantConfig, checkQdrantHealth, searchSemanticMemory } from "./qdrant";
 import type { MemoryEngineStatus } from "@/shared/schemas/memory";
@@ -28,6 +29,8 @@ interface MemoryRow {
   updatedAt?: string;
   expires_at?: string | null;
   expiresAt?: string | null;
+  access_count?: number | null;
+  last_accessed_at?: string | null;
 }
 
 interface RetrievalOptions extends Partial<MemoryConfig> {
@@ -106,6 +109,8 @@ function rowToMemory(row: MemoryRow): Memory {
     createdAt: new Date(createdAt),
     updatedAt: new Date(updatedAt),
     expiresAt: expiresAt ? new Date(String(expiresAt)) : null,
+    accessCount: typeof row.access_count === "number" ? row.access_count : 0,
+    lastAccessedAt: row.last_accessed_at ? new Date(String(row.last_accessed_at)) : null,
   };
 }
 
@@ -315,7 +320,24 @@ async function applyRerank<T extends { memory: Memory; score: number }>(
  * Signature PRESERVED: retrieveMemories(apiKeyId: string, config: RetrievalOptions = {})
  * Hot path: open-sse/handlers/chatCore.ts calls this unchanged.
  */
+/**
+ * Public retrieval entry point. Delegates to the tiered retrieval below, then records a
+ * TV6 access bump for every memory actually injected (best-effort, fire-and-forget — never
+ * blocks or fails the retrieval). `retrievePreview` deliberately does NOT call this, so a
+ * dry-run preview never inflates access counts.
+ */
 export async function retrieveMemories(
+  apiKeyId: string,
+  config: RetrievalOptions = {}
+): Promise<Memory[]> {
+  const result = await retrieveMemoriesInternal(apiKeyId, config);
+  if (result.length > 0) {
+    recordMemoryAccess(result.map((m) => m.id));
+  }
+  return result;
+}
+
+async function retrieveMemoriesInternal(
   apiKeyId: string,
   config: RetrievalOptions = {}
 ): Promise<Memory[]> {

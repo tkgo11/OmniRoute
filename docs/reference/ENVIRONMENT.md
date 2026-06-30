@@ -707,6 +707,10 @@ Embedding layer, vector store and reranking knobs for the persistent memory subs
 | `MEMORY_VEC_TOP_K`              | `20`                       | Default top-K used by the `sqlite-vec` brute-force vector search inside `src/lib/memory/vectorStore.ts`.   |
 | `MEMORY_RRF_K`                  | `60`                       | Reciprocal Rank Fusion constant `k` for hybrid FTS5 + vector retrieval (sqlite-vec recipe).                |
 | `HF_HUB_ENDPOINT`               | `https://huggingface.co`   | Override Hugging Face Hub base URL used by `staticPotion.ts` (e.g. mirror endpoint for air-gapped setups). |
+| `MEMORY_TYPED_DECAY_ENABLED`    | `false`                    | TV6 typed memory decay master switch. **Opt-in (default off)** — the sweep **deletes** decayed memories. With it off, `access_count`/`last_accessed_at` are pure telemetry and nothing is ever deleted. |
+| `MEMORY_TYPED_DECAY_EPISODIC_DAYS` | `30`                    | TTL (days) after which an unused `episodic` memory decays. `0` makes episodic immune too. Durable types (`factual`/`procedural`/`semantic`) are always immune. The decay clock re-bases on `last_accessed_at`. |
+| `MEMORY_TYPED_DECAY_ACCESS_IMMUNITY` | `3`                   | A memory injected `>=` this many times becomes immune to decay regardless of type. `0` disables access immunity. |
+| `MEMORY_TYPED_DECAY_SWEEP_INTERVAL` | `0` (disabled)        | Interval (seconds) for the optional periodic decay sweep in `src/lib/memory/typedDecay.ts`. `0`/unset = no periodic sweep. Doubly opt-in: also requires `MEMORY_TYPED_DECAY_ENABLED=true`. |
 
 ### Low-RAM Docker Example
 
