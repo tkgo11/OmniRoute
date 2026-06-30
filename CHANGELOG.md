@@ -27,6 +27,10 @@
 
 - **compression (caveman):** add a **Chinese (zh / wenyan 文言) input-side rule pack** — the counterpart of the existing output-side `terse-cjk` style. New `rules/zh/{dedup,filler,ultra}.json` collapse repeated context ("如前所述" → "见上。"), drop pleasantries/hedging ("请帮我…/谢谢/我觉得"), strip sentence-final modal particles ("吗/呢/吧"), and abbreviate dense technical terms ("数据库"→"DB", "应用程序"→"app"). Chinese is now auto-detected: `detectCompressionLanguage` distinguishes zh from ja by Han-without-kana (kana is Japanese-exclusive, so a Han-heavy Japanese sentence still resolves to `ja`), and `zh` is listed in `listSupportedCompressionLanguages`. Patterns are ReDoS-safe (bounded literal alternations, no `\b` since CJK has no word boundaries). Regression guard: `tests/unit/caveman-packs-zh-wenyan.test.ts` (packs load + validate + shrink; zh/ja/non-CJK detection). gaps v3.8.42 — T05/C6.
 
+### ✨ New Features
+
+- **compression (RTK):** add **Gradle** and **.NET CLI (`dotnet`)** to the RTK tool-output filter catalog. Tool output for `gradle`/`gradlew` and `dotnet build|test|restore|publish` is now recognized (both by command and by output content) and compressed: Gradle daemon/welcome banners and no-op `> Task … UP-TO-DATE/SKIPPED/FROM-CACHE` lines are dropped while `BUILD SUCCESSFUL/FAILED`, "What went wrong", and stack traces are preserved; the .NET build banner, copyright, and `Determining projects to restore`/`Restored …` chatter are dropped while `Build succeeded/FAILED`, `error CS####`/`warning CS####`, and test summaries are preserved. New builtin filters `engines/rtk/filters/{gradle,dotnet}.json` (with inline tests run by the catalog gate) plus `gradle`/`dotnet` entries in the command detector. Regression guard: `tests/unit/rtk-gradle-dotnet-filters.test.ts`. gaps v3.8.42 — T07/R9.
+
 ---
 
 ## [3.8.41] — 2026-06-29
