@@ -23,6 +23,10 @@
 
 - **compression (caveman):** complete the German, French, and Japanese rule packs with the `dedup` (repeated-context collapsing) and `ultra` (abbreviation / terse) categories they were missing — these three languages previously shipped only `context`/`filler`/`structural`, while `en`/`es`/`id`/`pt-BR` had all five. So a de/fr/ja conversation compressed at higher intensities now collapses repeated boilerplate ("wie bereits besprochen" → "Siehe oben.", "comme mentionné précédemment" → "Voir ci-dessus.", "前述のとおり" → "（上記参照）") and abbreviates dense technical vocabulary (`Datenbank`→`DB`, `Authentifizierung`→`Auth`; `base de données`→`BD`, `authentification`→`auth`; `データベース`→`DB`, `アプリケーション`→`app`). Patterns mirror the existing `es` pack and stay ReDoS-safe (bounded literal alternations; the CJK pack uses no `\b` since Japanese has no word boundaries). Regression guard: `tests/unit/caveman-packs-de-fr-ja.test.ts` (packs load + validate + shrink a representative sample). gaps v3.8.42 — T05/C2.
 
+### ✨ New Features
+
+- **compression (caveman):** add a **Chinese (zh / wenyan 文言) input-side rule pack** — the counterpart of the existing output-side `terse-cjk` style. New `rules/zh/{dedup,filler,ultra}.json` collapse repeated context ("如前所述" → "见上。"), drop pleasantries/hedging ("请帮我…/谢谢/我觉得"), strip sentence-final modal particles ("吗/呢/吧"), and abbreviate dense technical terms ("数据库"→"DB", "应用程序"→"app"). Chinese is now auto-detected: `detectCompressionLanguage` distinguishes zh from ja by Han-without-kana (kana is Japanese-exclusive, so a Han-heavy Japanese sentence still resolves to `ja`), and `zh` is listed in `listSupportedCompressionLanguages`. Patterns are ReDoS-safe (bounded literal alternations, no `\b` since CJK has no word boundaries). Regression guard: `tests/unit/caveman-packs-zh-wenyan.test.ts` (packs load + validate + shrink; zh/ja/non-CJK detection). gaps v3.8.42 — T05/C6.
+
 ---
 
 ## [3.8.41] — 2026-06-29
