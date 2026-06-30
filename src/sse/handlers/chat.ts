@@ -224,8 +224,6 @@ export async function handleChat(
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
   }
 
-  const rawClientBody = cloneLogPayload(body);
-
   // Early guard: an explicitly empty `messages` array is invalid for every
   // upstream (Anthropic/OpenAI both reject "at least one message is required").
   // Forwarding it produced a confusing raw upstream 400/502; reject it here with
@@ -240,9 +238,10 @@ export async function handleChat(
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "messages: at least one message is required");
   }
 
-  // Build clientRawRequest for logging (if not provided)
+  // buildClientRawRequest already deep-clones the body, so pass `body` directly — the
+  // prior local clone was a redundant second full-body copy on the hot path (#5152).
   if (!clientRawRequest) {
-    clientRawRequest = buildClientRawRequest(request, rawClientBody);
+    clientRawRequest = buildClientRawRequest(request, body);
   }
 
   // T01 — Accept-header streaming opt-in (#302 / #5305). A bare `Accept:
