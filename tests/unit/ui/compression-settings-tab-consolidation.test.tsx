@@ -75,9 +75,8 @@ afterEach(() => {
 });
 
 async function renderTab() {
-  const { default: CompressionSettingsTab } = await import(
-    "@/app/(dashboard)/dashboard/settings/components/CompressionSettingsTab"
-  );
+  const { default: CompressionSettingsTab } =
+    await import("@/app/(dashboard)/dashboard/settings/components/CompressionSettingsTab");
   await act(async () => {
     root = createRoot(container);
     root.render(<CompressionSettingsTab />);
