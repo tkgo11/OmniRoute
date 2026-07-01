@@ -43,10 +43,9 @@ describe("pipelineEngineBreaker — config resolution", () => {
   });
 
   it("partial wins over env", () => {
-    const cfg = resolvePipelineBreakerConfig(
-      { enabled: false },
-      { COMPRESSION_PIPELINE_BREAKER_ENABLED: "true" } as NodeJS.ProcessEnv
-    );
+    const cfg = resolvePipelineBreakerConfig({ enabled: false }, {
+      COMPRESSION_PIPELINE_BREAKER_ENABLED: "true",
+    } as NodeJS.ProcessEnv);
     assert.equal(cfg.enabled, false);
   });
 });

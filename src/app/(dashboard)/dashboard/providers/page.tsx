@@ -394,8 +394,7 @@ export default function ProvidersPage() {
     // Count API keys in "warning" state across all connections
     const warning = providerConnections.reduce((warnCount, conn) => {
       const health = (conn as any).providerSpecificData?.apiKeyHealth as
-        | Record<string, { status: string }>
-        | undefined;
+        Record<string, { status: string }> | undefined;
       if (!health) return warnCount;
       return warnCount + Object.values(health).filter((h) => h.status === "warning").length;
     }, 0);

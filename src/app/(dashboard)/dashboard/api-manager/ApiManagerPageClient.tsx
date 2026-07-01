@@ -819,17 +819,15 @@ export default function ApiManagerPageClient() {
     if (!debouncedSearchModel.trim()) return modelsByProvider;
 
     return modelsByProvider
-      .map(
-        ([provider, models]): ProviderGroup => [
-          provider,
-          models.filter(
-            (m) =>
-              matchesSearch(m.id, debouncedSearchModel) ||
-              matchesSearch(m.name || "", debouncedSearchModel) ||
-              matchesSearch(provider, debouncedSearchModel)
-          ),
-        ]
-      )
+      .map(([provider, models]): ProviderGroup => [
+        provider,
+        models.filter(
+          (m) =>
+            matchesSearch(m.id, debouncedSearchModel) ||
+            matchesSearch(m.name || "", debouncedSearchModel) ||
+            matchesSearch(provider, debouncedSearchModel)
+        ),
+      ])
       .filter(([, models]) => models.length > 0);
   }, [modelsByProvider, debouncedSearchModel]);
 

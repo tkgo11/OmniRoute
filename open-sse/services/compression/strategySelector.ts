@@ -795,7 +795,9 @@ function commitStepResult(
 ): { body: Record<string, unknown>; advanced: boolean } {
   if (ctx.breakerOn) recordEngineSuccess(step.engine, ctx.breaker);
   mergeStackStep(acc, step.engine, result);
-  const advance = ctx.bailout?.enabled ? decideStep(result, ctx.bailout).advance : result.compressed;
+  const advance = ctx.bailout?.enabled
+    ? decideStep(result, ctx.bailout).advance
+    : result.compressed;
   if (advance && gateAdvance(result, currentBody, ctx.fidelityGate, acc, step.engine)) {
     return { body: result.body, advanced: true };
   }

@@ -478,8 +478,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const allFetchedModels = modelsData.models || [];
     const importFreeOnly = Boolean(
-      (connection.providerSpecificData as Record<string, unknown> | undefined)
-        ?.importFreeModelsOnly
+      (connection.providerSpecificData as Record<string, unknown> | undefined)?.importFreeModelsOnly
     );
     const { models: fetchedModels, freeFilterEmpty } = selectModelsForImport(
       logProvider,

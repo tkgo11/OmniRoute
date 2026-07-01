@@ -39,29 +39,83 @@ export function categoriseModel(modelId) {
     { re: /kmc\/kimi-k2\.6/, name: "kimi-k26", ctx: 131072, compact: 112000, toolLimit: 32768 },
     { re: /glm\/glm-5\.2-max/, name: "glm52max", ctx: 131072, compact: 112000, toolLimit: 32768 },
     { re: /glm\/glm-5\.2$/, name: "glm52", ctx: 131072, compact: 112000, toolLimit: 32768 },
-    { re: /opencode-go\/mimo-v2\.5-pro/, name: "mimo-pro", ctx: 131072, compact: 112000, toolLimit: 32768 },
-    { re: /opencode-go\/qwen3\.7-plus/, name: "qwen37plus", ctx: 32768, compact: 28000, toolLimit: 16384 },
+    {
+      re: /opencode-go\/mimo-v2\.5-pro/,
+      name: "mimo-pro",
+      ctx: 131072,
+      compact: 112000,
+      toolLimit: 32768,
+    },
+    {
+      re: /opencode-go\/qwen3\.7-plus/,
+      name: "qwen37plus",
+      ctx: 32768,
+      compact: 28000,
+      toolLimit: 16384,
+    },
   ];
 
   // ── Good models (high effort) ─────────────────────────────────────────────
   const goodPatterns = [
-    { re: /ollamacloud\/deepseek-v4-pro/, name: "deepseek-pro", ctx: 131072, compact: 112000, toolLimit: 32768 },
-    { re: /opencode-go\/mimo-v2\.5$/, name: "mimo", ctx: 131072, compact: 112000, toolLimit: 32768 },
+    {
+      re: /ollamacloud\/deepseek-v4-pro/,
+      name: "deepseek-pro",
+      ctx: 131072,
+      compact: 112000,
+      toolLimit: 32768,
+    },
+    {
+      re: /opencode-go\/mimo-v2\.5$/,
+      name: "mimo",
+      ctx: 131072,
+      compact: 112000,
+      toolLimit: 32768,
+    },
   ];
 
   // ── Simple models (no effort) ─────────────────────────────────────────────
   const simplePatterns = [
     { re: /ollamacloud\/gemma4:31b/, name: "gemma4", ctx: 32768, compact: 28000, toolLimit: 16384 },
-    { re: /ollamacloud\/nemotron-3-super/, name: "nemotron", ctx: 32768, compact: 28000, toolLimit: 16384 },
-    { re: /ollamacloud\/gpt-oss:20b/, name: "gptoss", ctx: 32768, compact: 28000, toolLimit: 16384 },
+    {
+      re: /ollamacloud\/nemotron-3-super/,
+      name: "nemotron",
+      ctx: 32768,
+      compact: 28000,
+      toolLimit: 16384,
+    },
+    {
+      re: /ollamacloud\/gpt-oss:20b/,
+      name: "gptoss",
+      ctx: 32768,
+      compact: 28000,
+      toolLimit: 16384,
+    },
   ];
 
   // ── Fast models (low effort) ──────────────────────────────────────────────
   const fastPatterns = [
-    { re: /ollamacloud\/deepseek-v4-flash/, name: "deepseek-flash", ctx: 65536, compact: 56000, toolLimit: 16384 },
-    { re: /ollamacloud\/gemini-3-flash/, name: "gemini-flash", ctx: 1000000, compact: 850000, toolLimit: 32768 },
+    {
+      re: /ollamacloud\/deepseek-v4-flash/,
+      name: "deepseek-flash",
+      ctx: 65536,
+      compact: 56000,
+      toolLimit: 16384,
+    },
+    {
+      re: /ollamacloud\/gemini-3-flash/,
+      name: "gemini-flash",
+      ctx: 1000000,
+      compact: 850000,
+      toolLimit: 32768,
+    },
     { re: /glm\/glm-5-turbo/, name: "glm5turbo", ctx: 131072, compact: 112000, toolLimit: 16384 },
-    { re: /glm\/glm-4\.7-flash/, name: "glm47flash", ctx: 131072, compact: 112000, toolLimit: 16384 },
+    {
+      re: /glm\/glm-4\.7-flash/,
+      name: "glm47flash",
+      ctx: 131072,
+      compact: 112000,
+      toolLimit: 16384,
+    },
   ];
 
   for (const p of thinkingPatterns) {
@@ -146,7 +200,11 @@ export function fallbackCodexProfile(modelId, model) {
   const ctx =
     typeof model === "string"
       ? 128000
-      : firstPositiveNumber(model.context_length, model.max_context_window_tokens, model.max_input_tokens) ?? 128000;
+      : (firstPositiveNumber(
+          model.context_length,
+          model.max_context_window_tokens,
+          model.max_input_tokens
+        ) ?? 128000);
   const maxOutput =
     typeof model === "string"
       ? null
@@ -316,10 +374,7 @@ export function registerSetupCodex(program) {
       "--api-key <key>",
       "OmniRoute API key for the remote instance (defaults to OMNIROUTE_API_KEY env var)"
     )
-    .option(
-      "--codex-home <dir>",
-      "Directory where profile files are written (default: ~/.codex)"
-    )
+    .option("--codex-home <dir>", "Directory where profile files are written (default: ~/.codex)")
     .option(
       "--only <patterns>",
       "Comma-separated substrings — only generate profiles for matching model IDs (e.g. glm,kimi)"

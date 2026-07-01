@@ -74,8 +74,7 @@ export default function CliProfileAutoSyncToggles() {
         <h3 className="text-sm font-semibold text-text-main">CLI profile auto-sync</h3>
         <p className="text-xs text-text-muted">
           After a provider model sync, automatically regenerate CLI tool profiles from the live
-          catalog. Off by default — only profile files are written, never the active/default
-          config.
+          catalog. Off by default — only profile files are written, never the active/default config.
         </p>
       </div>
       <div className="flex flex-col gap-3">

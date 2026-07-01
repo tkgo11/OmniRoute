@@ -58,7 +58,9 @@ describe("resolveRetrievalRampFactor (env)", () => {
   });
   it("reads a valid env value", () => {
     assert.equal(
-      resolveRetrievalRampFactor({ COMPRESSION_CCR_RETRIEVAL_RAMP_FACTOR: "3" } as NodeJS.ProcessEnv),
+      resolveRetrievalRampFactor({
+        COMPRESSION_CCR_RETRIEVAL_RAMP_FACTOR: "3",
+      } as NodeJS.ProcessEnv),
       3
     );
   });
@@ -103,7 +105,11 @@ describe("ccrEngine.apply — retrieval-aware compression (H8)", () => {
   it("rampFactor 1 keeps the legacy binary behavior (retrieved-twice still compresses)", () => {
     const hash = storeBlock(block(1000), P);
     retrieve(hash, 2);
-    assert.equal(run(block(1000), 1).compressed, true, "no ramp → still compressed below threshold");
+    assert.equal(
+      run(block(1000), 1).compressed,
+      true,
+      "no ramp → still compressed below threshold"
+    );
     retrieve(hash, 1); // count 3
     assert.equal(run(block(1000), 1).compressed, false, "cliff still applies at the threshold");
   });

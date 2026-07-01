@@ -62,14 +62,19 @@ export function resolvePipelineBreakerConfig(
   partial?: Partial<PipelineCircuitBreakerConfig>,
   env: NodeJS.ProcessEnv = process.env
 ): PipelineCircuitBreakerConfig {
-  const enabled =
-    partial?.enabled ?? env.COMPRESSION_PIPELINE_BREAKER_ENABLED === "true";
+  const enabled = partial?.enabled ?? env.COMPRESSION_PIPELINE_BREAKER_ENABLED === "true";
   const failureThreshold =
     partial?.failureThreshold ??
-    toNonNegativeInt(env.COMPRESSION_PIPELINE_BREAKER_THRESHOLD, DEFAULT_PIPELINE_BREAKER.failureThreshold);
+    toNonNegativeInt(
+      env.COMPRESSION_PIPELINE_BREAKER_THRESHOLD,
+      DEFAULT_PIPELINE_BREAKER.failureThreshold
+    );
   const cooldownMs =
     partial?.cooldownMs ??
-    toNonNegativeInt(env.COMPRESSION_PIPELINE_BREAKER_COOLDOWN_MS, DEFAULT_PIPELINE_BREAKER.cooldownMs);
+    toNonNegativeInt(
+      env.COMPRESSION_PIPELINE_BREAKER_COOLDOWN_MS,
+      DEFAULT_PIPELINE_BREAKER.cooldownMs
+    );
   return {
     enabled: enabled === true,
     failureThreshold: Math.max(1, failureThreshold),

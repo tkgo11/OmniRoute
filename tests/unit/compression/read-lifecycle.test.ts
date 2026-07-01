@@ -30,9 +30,8 @@ const anthropicResult = (id: string, text: string) => ({
 function anthropicResultText(msg: unknown, id: string): string | undefined {
   const blocks = (msg as { content?: unknown[] }).content;
   const b = Array.isArray(blocks)
-    ? (blocks.find(
-        (x) => (x as { tool_use_id?: string }).tool_use_id === id
-      ) as { content?: string } | undefined)
+    ? (blocks.find((x) => (x as { tool_use_id?: string }).tool_use_id === id) as
+        { content?: string } | undefined)
     : undefined;
   return b?.content;
 }
@@ -41,10 +40,18 @@ function anthropicResultText(msg: unknown, id: string): string | undefined {
 const openaiRead = (id: string, path: string) => ({
   role: "assistant",
   tool_calls: [
-    { id, type: "function", function: { name: "read_file", arguments: JSON.stringify({ file_path: path }) } },
+    {
+      id,
+      type: "function",
+      function: { name: "read_file", arguments: JSON.stringify({ file_path: path }) },
+    },
   ],
 });
-const openaiResult = (id: string, text: string) => ({ role: "tool", tool_call_id: id, content: text });
+const openaiResult = (id: string, text: string) => ({
+  role: "tool",
+  tool_call_id: id,
+  content: text,
+});
 
 describe("read-lifecycle — pure analysis", () => {
   it("extracts invocations from both shapes", () => {
@@ -60,21 +67,30 @@ describe("read-lifecycle — pure analysis", () => {
   });
 
   it("marks a read superseded by a later read of the same path", () => {
-    const { invocations } = extractInvocations([anthropicRead("c1", "/a.ts"), anthropicRead("c2", "/a.ts")]);
+    const { invocations } = extractInvocations([
+      anthropicRead("c1", "/a.ts"),
+      anthropicRead("c2", "/a.ts"),
+    ]);
     const s = findSupersededReadCallIds(invocations);
     assert.equal(s.has("c1"), true);
     assert.equal(s.has("c2"), false);
   });
 
   it("marks a read superseded by a later write of the same path", () => {
-    const { invocations } = extractInvocations([anthropicRead("c1", "/a.ts"), anthropicWrite("w1", "/a.ts")]);
+    const { invocations } = extractInvocations([
+      anthropicRead("c1", "/a.ts"),
+      anthropicWrite("w1", "/a.ts"),
+    ]);
     const s = findSupersededReadCallIds(invocations);
     assert.equal(s.has("c1"), true);
     assert.equal(s.has("w1"), false); // writes are never collapsed
   });
 
   it("does not supersede reads of different paths", () => {
-    const { invocations } = extractInvocations([anthropicRead("c1", "/a.ts"), anthropicRead("c2", "/b.ts")]);
+    const { invocations } = extractInvocations([
+      anthropicRead("c1", "/a.ts"),
+      anthropicRead("c2", "/b.ts"),
+    ]);
     const s = findSupersededReadCallIds(invocations);
     assert.equal(s.size, 0);
   });
@@ -134,7 +150,10 @@ describe("read-lifecycle — engine integration", () => {
     ];
     const out = run(messages, false);
     assert.equal(out.compressed, false);
-    assert.equal(anthropicResultText((out.body as { messages: unknown[] }).messages[1], "c1"), "OLD");
+    assert.equal(
+      anthropicResultText((out.body as { messages: unknown[] }).messages[1], "c1"),
+      "OLD"
+    );
   });
 
   it("schema defaults enabled to false (opt-in)", () => {

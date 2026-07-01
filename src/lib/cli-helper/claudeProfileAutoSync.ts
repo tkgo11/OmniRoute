@@ -76,7 +76,8 @@ export async function autoSyncClaudeProfilesFromLiveCatalog(
   // Reuse the CLI generator so automatic sync and `omniroute setup-claude` stay
   // behaviorally identical.
   // @ts-ignore - bin CLI modules are shipped as ESM JavaScript, without TS declarations.
-  const { syncClaudeProfilesFromModels } = await import("../../../bin/cli/commands/setup-claude.mjs");
+  const { syncClaudeProfilesFromModels } =
+    await import("../../../bin/cli/commands/setup-claude.mjs");
   const result = await syncClaudeProfilesFromModels(models, {
     claudeHome,
     baseUrl: profileBaseUrl,

@@ -50,7 +50,8 @@ export function resolveCacheAwareConfig(
   // No request body → no cacheable prefix to detect; honor the mode at its no-cache baseline.
   // The signal is the static caching heuristic OR (H5, opt-in) a usage-observed stable prefix.
   const staticCache = body
-    ? getCacheAwareStrategy(config.defaultMode, detectCachingContext(body, context)).skipSystemPrompt
+    ? getCacheAwareStrategy(config.defaultMode, detectCachingContext(body, context))
+        .skipSystemPrompt
     : false;
   const hasCache = staticCache || (body ? observeAndCheckPrefixFreeze(body) : false);
   const effective = resolvePreserveSystemPrompt(mode, { hasCache });

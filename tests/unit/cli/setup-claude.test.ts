@@ -43,14 +43,17 @@ test("profile names match setup-codex (cross-CLI consistency)", () => {
 test("syncClaudeProfilesFromModels writes directory-per-profile settings + threads baseUrl, skips non-ids", async () => {
   const claudeHome = await fs.mkdtemp(path.join(os.tmpdir(), "omniroute-claude-profiles-"));
   try {
-    const result = await syncClaudeProfilesFromModels(
-      [{ id: "glm/glm-5.2" }, { id: "" }],
-      { claudeHome, baseUrl: "http://vps:20128" }
-    );
+    const result = await syncClaudeProfilesFromModels([{ id: "glm/glm-5.2" }, { id: "" }], {
+      claudeHome,
+      baseUrl: "http://vps:20128",
+    });
 
     assert.equal(result.written, 1);
     assert.equal(result.skipped, 1);
-    assert.deepEqual(result.profiles.map((p) => p.name), ["glm52"]);
+    assert.deepEqual(
+      result.profiles.map((p) => p.name),
+      ["glm52"]
+    );
 
     // Directory-per-profile: <claudeHome>/profiles/<name>/settings.json
     const settingsPath = path.join(claudeHome, "profiles", "glm52", "settings.json");

@@ -75,7 +75,7 @@ export async function syncClaudeProfilesFromModels(models, opts = {}) {
   const profiles = [];
 
   for (const m of models) {
-    const id = typeof m === "string" ? m : m.id ?? "";
+    const id = typeof m === "string" ? m : (m.id ?? "");
     if (!id) {
       skipped++;
       continue;
@@ -115,7 +115,9 @@ export async function syncClaudeProfilesFromModels(models, opts = {}) {
  */
 export async function runSetupClaudeCommand(opts = {}) {
   const port = Number(opts.port ?? process.env.PORT ?? 20128) || 20128;
-  const baseUrl = (opts.remote ?? `http://localhost:${port}`).replace(/\/+$/, "").replace(/\/v1$/, "");
+  const baseUrl = (opts.remote ?? `http://localhost:${port}`)
+    .replace(/\/+$/, "")
+    .replace(/\/v1$/, "");
   const apiKey = opts.apiKey ?? opts["api-key"] ?? process.env.OMNIROUTE_API_KEY ?? "";
   const claudeHome = opts.claudeHome ?? opts["claude-home"] ?? join(os.homedir(), ".claude");
   const profilesRoot = join(claudeHome, "profiles");
@@ -163,7 +165,9 @@ export async function runSetupClaudeCommand(opts = {}) {
     if (skipped > 0) printInfo(`${skipped} models skipped (no matching profile pattern)`);
     console.log("\nTo use a profile:");
     console.log("  omniroute launch --profile <name>     # e.g. omniroute launch --profile glm52");
-    console.log("  # or: CLAUDE_CONFIG_DIR=~/.claude/profiles/<name> claude  (export ANTHROPIC_AUTH_TOKEN first)");
+    console.log(
+      "  # or: CLAUDE_CONFIG_DIR=~/.claude/profiles/<name> claude  (export ANTHROPIC_AUTH_TOKEN first)"
+    );
   } else {
     console.log(`\n[dry-run] ${written} profiles would be written (${skipped} skipped)`);
   }
@@ -182,7 +186,10 @@ export function registerSetupClaude(program) {
     .option("--remote <url>", "Remote OmniRoute URL, e.g. http://192.168.0.15:20128")
     .option("--api-key <key>", "OmniRoute API key (defaults to OMNIROUTE_API_KEY env var)")
     .option("--claude-home <dir>", "Claude home dir (default: ~/.claude)")
-    .option("--only <patterns>", "Comma-separated substrings — only matching model IDs (e.g. glm,kimi)")
+    .option(
+      "--only <patterns>",
+      "Comma-separated substrings — only matching model IDs (e.g. glm,kimi)"
+    )
     .option("--dry-run", "Print what would be written without touching the filesystem")
     .action(async (opts) => {
       const exitCode = await runSetupClaudeCommand(opts);

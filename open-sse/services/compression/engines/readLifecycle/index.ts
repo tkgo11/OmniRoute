@@ -175,7 +175,11 @@ export function collapseSupersededReads(
 
   const out = messages.map((msg) => {
     // OpenAI tool result message.
-    if (msg?.role === "tool" && typeof msg.tool_call_id === "string" && superseded.has(msg.tool_call_id)) {
+    if (
+      msg?.role === "tool" &&
+      typeof msg.tool_call_id === "string" &&
+      superseded.has(msg.tool_call_id)
+    ) {
       collapsedCount++;
       const path = readPathByCallId.get(msg.tool_call_id) ?? "file";
       return { ...msg, content: stubFor(path) };
