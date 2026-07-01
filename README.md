@@ -743,6 +743,24 @@ podman compose --profile base up -d
 
 📖 [Podman Guide](contrib/podman/README.md) — Quadlet setup, podman-compose, Quadlet.
 
+**⚡ Faster / leaner install (skip the native build)**
+
+The native SQLite engine (`better-sqlite3`) is an **optional** dependency, so a global
+install never blocks on compiling from source: it uses a prebuilt binary when one matches
+your platform/Node, and otherwise falls back transparently to a pure-JS engine
+(`node:sqlite` on Node 22+, else the bundled `sql.js` WASM) — no build tools required.
+
+To skip the post-install native warm-up entirely (CI, headless, or slow machines):
+
+```bash
+OMNIROUTE_SKIP_POSTINSTALL=1 npm install -g omniroute   # CI=1 also skips it
+```
+
+For the fastest installs prefer **pnpm** (content-addressed store + hard links — see above).
+For a dashboard-free, headless runtime use the Docker `base` profile (above) or the
+[Termux guide](docs/guides/TERMUX_GUIDE.md). The CLI and the web dashboard are served by the
+same process on one port, so there is no separate CLI-only package today.
+
 <br/>
 
 <div align="center">
