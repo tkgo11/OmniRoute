@@ -547,12 +547,12 @@ export class BaseExecutor {
    * Resolve the effective API key via extra-keys round-robin rotation.
    * Mutates `credentials.providerSpecificData.selectedKeyId` on rotation.
    */
-  protected resolveEffectiveKey(credentials: ProviderCredentials): string {
+  protected resolveEffectiveKey(credentials: ProviderCredentials): string | undefined {
     const extraKeys =
       (credentials.providerSpecificData?.extraApiKeys as string[] | undefined) ?? [];
     const selectedKeyId = (credentials.providerSpecificData as Record<string, unknown> | undefined)
       ?.selectedKeyId as string | undefined;
-    let effectiveKey = credentials.apiKey ?? "";
+    let effectiveKey = credentials.apiKey;
     if (extraKeys.length > 0 && credentials.connectionId && credentials.apiKey) {
       const resolved = resolveKeyForRequest(
         credentials.connectionId,
@@ -577,7 +577,7 @@ export class BaseExecutor {
   protected buildHeadersPreamble(
     credentials: ProviderCredentials,
     stream: boolean
-  ): { headers: Record<string, string>; effectiveKey: string } {
+  ): { headers: Record<string, string>; effectiveKey: string | undefined } {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       ...this.config.headers,
@@ -901,7 +901,11 @@ export class BaseExecutor {
     const strippedFields = new Set<string>();
 
     for (let urlIndex = 0; urlIndex < fallbackCount; urlIndex++) {
-      const requestCredentials = withForcedResponsesUpstream(this.provider, body, activeCredentials);
+      const requestCredentials = withForcedResponsesUpstream(
+        this.provider,
+        body,
+        activeCredentials
+      );
       const url = this.buildUrl(model, stream, urlIndex, requestCredentials);
       const headers = this.buildHeaders(requestCredentials, stream, clientHeaders, model);
       applyConfiguredUserAgent(headers, requestCredentials?.providerSpecificData);

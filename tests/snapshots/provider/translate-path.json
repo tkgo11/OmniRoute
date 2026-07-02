@@ -2277,27 +2277,23 @@
     "format": "openai",
     "headers": {
       "apiKey": {
-        "Accept": "*/*",
+        "Accept": "text/event-stream",
         "Authorization": "Bearer <TOK>",
-        "Content-Type": "application/connect+json",
-        "connect-protocol-version": "1"
+        "Content-Type": "application/json"
       },
       "nonStream": {
-        "Accept": "*/*",
         "Authorization": "Bearer <TOK>",
-        "Content-Type": "application/connect+json",
-        "connect-protocol-version": "1"
+        "Content-Type": "application/json"
       },
       "oauth": {
-        "Accept": "*/*",
+        "Accept": "text/event-stream",
         "Authorization": "Bearer <TOK>",
-        "Content-Type": "application/connect+json",
-        "connect-protocol-version": "1"
+        "Content-Type": "application/json"
       }
     },
     "url": {
-      "nonStream": "https://www.kimi.com/apiv2/kimi.gateway.chat.v1.ChatService/Chat",
-      "stream": "https://www.kimi.com/apiv2/kimi.gateway.chat.v1.ChatService/Chat"
+      "nonStream": "https://www.kimi.com",
+      "stream": "https://www.kimi.com"
     }
   },
   "kiro": {
