@@ -104,6 +104,8 @@
 
 - **dashboard (model picker):** guard against null model-alias values so opening Create Combo for a custom provider node no longer crashes. `ModelSelectModal`'s custom-provider branch filtered `modelAliases` entries with a raw `fullModel.startsWith(...)`, which threw a `TypeError` whenever an alias value was `null`/`undefined` (a stale/partial entry persisted to settings). The filter/map logic is extracted into a new `buildNodeAliasModels` helper (mirroring the sibling passthrough-alias guard, #485) that requires `typeof fullModel === "string"` before calling `.startsWith`. Regression guard: `tests/unit/model-select-null-alias-guard-2247.test.ts`. (thanks @wahyuzero)
 
+- **fix(translator):** strip orphaned tool results (results with no matching tool call) across request formats to avoid upstream 400s. (thanks @warelik)
+
 ### 📝 Maintenance
 
 ---
