@@ -889,12 +889,28 @@ jobs:
           else
             echo "SonarQube scan skipped because SONAR_TOKEN or SONAR_HOST_URL is not configured." >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Read project version
+        if: ${{ github.event_name == 'pull_request' && env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
+        id: pkg
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          # Harden against output injection: only accept a plain semver-ish string.
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid package.json version: $VERSION" >&2; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - name: SonarQube Scan
         if: ${{ github.event_name == 'pull_request' && env.SONAR_TOKEN != '' && env.SONAR_HOST_URL != '' }}
         uses: SonarSource/sonarqube-scan-action@v8
         env:
           SONAR_TOKEN: ${{ env.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ env.SONAR_HOST_URL }}
+        with:
+          # sonar.projectVersion advances the "previous_version" new-code baseline at
+          # each release; without it the baseline never moves (it stays pinned to the
+          # analysis where the version last changed) and legacy issues pile up as
+          # "new code" in the quality gate.
+          args: -Dsonar.projectVersion=${{ steps.pkg.outputs.version }}
 
   coverage-pr-comment:
     name: PR Coverage Comment
