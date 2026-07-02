@@ -106,6 +106,8 @@
 
 - **fix(translator):** strip orphaned tool results (results with no matching tool call) across request formats to avoid upstream 400s. (thanks @warelik)
 
+- **fix(kiro):** stop injecting a placeholder user turn on trailing tool-result turns so agentic loops aren't disrupted. (thanks @jetmiky)
+
 ### 📝 Maintenance
 
 ---
