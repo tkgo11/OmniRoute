@@ -77,6 +77,7 @@ import {
 import { ensureStreamReadiness } from "../utils/streamReadiness.ts";
 import { resolveSuppressThinkClose, THINKING_MARKER_HEADER } from "../utils/thinkCloseMarker.ts";
 import { resolveStreamReadinessTimeout } from "../utils/streamReadinessPolicy.ts";
+import { resolveAgentGoalPolicy } from "../utils/agentGoalPolicy.ts";
 import { createStreamController } from "../utils/streamHandler.ts";
 import * as streamFailure from "../utils/streamFailureFinalization.ts";
 import { createSseHeartbeatTransform, shapeForClientFormat } from "../utils/sseHeartbeat.ts";
@@ -130,7 +131,10 @@ import {
   STREAM_RECOVERY,
 } from "../config/constants.ts";
 import { createRecoverableStream, makeContinuationBody } from "../services/streamRecovery.ts";
-import { resolveResilienceSettings } from "@/lib/resilience/settings";
+import {
+  resolveResilienceSettings,
+  isStreamRecoveryExplicitlyConfigured,
+} from "@/lib/resilience/settings";
 import {
   classifyProviderError,
   PROVIDER_ERROR_TYPES,
@@ -448,6 +452,13 @@ export async function handleChatCore({
   }
   if (pluginGate.body) {
     body = pluginGate.body;
+  }
+  const agentGoalPolicy = resolveAgentGoalPolicy(body, clientRawRequest?.headers ?? null);
+  if (agentGoalPolicy.detected) {
+    log?.debug?.(
+      "AGENT_GOAL",
+      `long-running goal mode enabled: readinessMax=${agentGoalPolicy.readinessMaxTimeoutMs}ms streamRecovery=${agentGoalPolicy.streamRecoveryEnabled}`
+    );
   }
 
   let effectiveServiceTier: EffectiveServiceTier = "standard";
@@ -2449,8 +2460,21 @@ export async function handleChatCore({
                     // Reuse the request-consolidated settings read (see line ~2076) — no
                     // second DB/cache hit. Default OFF when the setting is absent.
                     const sr = resolveResilienceSettings(settings).streamRecovery;
-                    streamRecoveryEnabled = sr.enabled;
+                    // Fail-closed: the agent-goal-policy heuristic may only ADD recovery
+                    // when the operator has no explicit configuration. If the operator
+                    // explicitly configured stream recovery (env var or DB/settings
+                    // override), that value always wins — the goal policy must never
+                    // re-enable recovery the operator explicitly turned off.
+                    const operatorExplicit = isStreamRecoveryExplicitlyConfigured(settings);
+                    const goalOverride = !operatorExplicit && agentGoalPolicy.streamRecoveryEnabled;
+                    streamRecoveryEnabled = sr.enabled || goalOverride;
                     continueMidStreamEnabled = sr.continueMidStream === true;
+                    if (goalOverride && !sr.enabled) {
+                      log?.info?.(
+                        "AGENT_GOAL",
+                        `agentGoalPolicy override: stream recovery enabled for goal request requestId=${traceId} model=${modelToCall || model || requestedModel || "unknown"}`
+                      );
+                    }
                   } catch {
                     streamRecoveryEnabled = false;
                     continueMidStreamEnabled = false;
@@ -3923,7 +3947,9 @@ export async function handleChatCore({
     provider,
     model,
     body: (finalBody || translatedBody) as Record<string, unknown> | null | undefined,
-    maxTimeoutMs: STREAM_READINESS_MAX_TIMEOUT_MS,
+    maxTimeoutMs: agentGoalPolicy.detected
+      ? Math.max(STREAM_READINESS_MAX_TIMEOUT_MS, agentGoalPolicy.readinessMaxTimeoutMs)
+      : STREAM_READINESS_MAX_TIMEOUT_MS,
   });
   if (streamReadinessPolicy.timeoutMs !== streamReadinessPolicy.baseTimeoutMs) {
     log?.debug?.(
