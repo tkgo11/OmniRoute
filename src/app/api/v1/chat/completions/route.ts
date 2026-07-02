@@ -3,6 +3,7 @@ import { callCloudWithMachineId } from "@/shared/utils/cloud";
 import { handleChat } from "@/sse/handlers/chat";
 import { initTranslators } from "@omniroute/open-sse/translator/index.ts";
 import { createInjectionGuard } from "@/middleware/promptInjectionGuard";
+import { acceptHeaderForcesStream } from "@omniroute/open-sse/utils/aiSdkCompat.ts";
 import { withEarlyStreamKeepalive } from "@omniroute/open-sse/utils/earlyStreamKeepalive";
 import { resolveKeepaliveThreshold } from "@omniroute/open-sse/utils/keepaliveThreshold";
 import { checkChatAdmission } from "@/shared/middleware/chatBodyAdmission";
@@ -22,6 +23,10 @@ function ensureInitialized() {
     });
   }
   return initPromise;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /**
@@ -82,7 +87,17 @@ export async function POST(request) {
     console.error("[SECURITY] Prompt injection guard failed:", error);
   }
 
-  const wantsStreaming = parsedBody?.stream !== false;
+  // Gate the early SSE keepalive wrapper: only wrap when the client explicitly
+  // asks for streaming (body `stream: true`) or the Accept header forces SSE.
+  // The parsed body is passed through UNTOUCHED — the actual stream/JSON framing
+  // stays decided by chatCore/resolveStreamFlag (legacy streaming default and the
+  // per-key `streamDefaultMode: "json"` opt-in are preserved).
+  const parsedBodyIsRecord = isRecord(parsedBody);
+  const acceptHeader = request.headers.get("accept") || "";
+  const acceptForcesStream =
+    parsedBodyIsRecord && acceptHeaderForcesStream(acceptHeader, parsedBody.stream);
+  const wantsStreaming = (parsedBodyIsRecord && parsedBody.stream === true) || acceptForcesStream;
+
   if (wantsStreaming) {
     return await withEarlyStreamKeepalive(handleChat(request, null, parsedBody), {
       signal: request.signal,
