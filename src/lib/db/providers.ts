@@ -318,6 +318,7 @@ export async function createProviderConnection(data: JsonRecord) {
     "perKeyProxyEnabled",
     "quotaWindowThresholds",
     "rateLimitOverrides",
+    "healthCheckInterval",
   ];
   for (const field of optionalFields) {
     if (data[field] !== undefined && data[field] !== null) {
@@ -410,7 +411,7 @@ function _insertConnectionRow(db: DbLike, conn: JsonRecord) {
     lastErrorSource: conn.lastErrorSource || null,
     backoffLevel: conn.backoffLevel || 0,
     rateLimitedUntil: conn.rateLimitedUntil || null,
-    healthCheckInterval: conn.healthCheckInterval || null,
+    healthCheckInterval: conn.healthCheckInterval ?? null,
     lastHealthCheckAt: conn.lastHealthCheckAt || null,
     lastTested: conn.lastTested || null,
     apiKey: conn.apiKey || null,
@@ -488,7 +489,7 @@ function _updateConnectionRow(db: DbLike, id: string, data: JsonRecord) {
     lastErrorSource: data.lastErrorSource || null,
     backoffLevel: data.backoffLevel || 0,
     rateLimitedUntil: data.rateLimitedUntil || null,
-    healthCheckInterval: data.healthCheckInterval || null,
+    healthCheckInterval: data.healthCheckInterval ?? null,
     lastHealthCheckAt: data.lastHealthCheckAt || null,
     lastTested: data.lastTested || null,
     apiKey: data.apiKey || null,
