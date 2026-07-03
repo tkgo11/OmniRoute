@@ -79,14 +79,32 @@ test("the executor's resolveKiroRegion routes an eu-north-1 IdC account to the p
   assert.equal(kiroRuntimeHost("eu-central-1"), "https://q.eu-central-1.amazonaws.com");
 });
 
-test("buildKiroProfileDiscoveryRegions: EU IdC probes eu-central-1 first, never eu-north-1", () => {
+test("buildKiroProfileDiscoveryRegions: EU IdC probes the profile regions first, then the IdC region", () => {
   const regions = buildKiroProfileDiscoveryRegions("eu-north-1");
-  assert.deepEqual(regions, ["eu-central-1", "us-east-1"]);
-  assert.ok(!regions.includes("eu-north-1"), "must not probe the nonexistent q.eu-north-1 host");
+  assert.deepEqual(regions, ["eu-central-1", "us-east-1", "eu-north-1"]);
+  // The profile regions (fast path) are tried BEFORE the IdC-region fallback.
+  assert.ok(regions.indexOf("eu-central-1") < regions.indexOf("eu-north-1"));
+  assert.ok(regions.indexOf("us-east-1") < regions.indexOf("eu-north-1"));
+  // Another EMEA IdC region → still EU-first, IdC region appended as fallback.
+  assert.deepEqual(buildKiroProfileDiscoveryRegions("me-central-1"), [
+    "eu-central-1",
+    "us-east-1",
+    "me-central-1",
+  ]);
 });
 
-test("buildKiroProfileDiscoveryRegions: non-EU IdC probes us-east-1 first", () => {
-  assert.deepEqual(buildKiroProfileDiscoveryRegions("us-west-2"), ["us-east-1", "eu-central-1"]);
+test("buildKiroProfileDiscoveryRegions: non-EU IdC probes us-east-1 first, then the IdC region", () => {
+  assert.deepEqual(buildKiroProfileDiscoveryRegions("us-west-2"), [
+    "us-east-1",
+    "eu-central-1",
+    "us-west-2",
+  ]);
+  assert.deepEqual(buildKiroProfileDiscoveryRegions("ap-southeast-2"), [
+    "us-east-1",
+    "eu-central-1",
+    "ap-southeast-2",
+  ]);
+  // No stored region → just the two profile regions.
   assert.deepEqual(buildKiroProfileDiscoveryRegions(undefined), ["us-east-1", "eu-central-1"]);
 });
 
@@ -119,6 +137,30 @@ test("discoverKiroProfileArnAcrossRegions: eu-north-1 IdC finds the eu-central-1
     requested.some((u) => u.startsWith("https://q.eu-central-1.amazonaws.com/")),
     "must probe the eu-central-1 Q Developer host"
   );
+});
+
+test("discoverKiroProfileArnAcrossRegions: a non-EU (ap-southeast-2) IdC resolves a us-east-1 profile", async () => {
+  // Proves the fix is general, not eu-north-1-specific: an APAC IdC's profile lives in a Q
+  // profile region (us-east-1 here) and is found via the cross-region SSO token.
+  const US_EAST_ARN = "arn:aws:codewhisperer:us-east-1:111111111111:profile/APAC";
+  const requested: string[] = [];
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    requested.push(url);
+    if (url.includes("us-east-1")) {
+      return new Response(JSON.stringify({ profiles: [{ arn: US_EAST_ARN }] }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ profiles: [] }), { status: 200 });
+  }) as unknown as typeof fetch;
+
+  const arn = await discoverKiroProfileArnAcrossRegions("sso-token", "ap-southeast-2", fetchImpl);
+  assert.equal(arn, US_EAST_ARN);
+  assert.equal(
+    resolveKiroRuntimeRegion({ region: "ap-southeast-2", profileArn: arn }),
+    "us-east-1"
+  );
+  // The us-east-1 profile region is probed before the ap-southeast-2 IdC-region fallback.
+  assert.ok(requested.some((u) => u.startsWith("https://codewhisperer.us-east-1.amazonaws.com/")));
 });
 
 test("discoverKiroProfileArnAcrossRegions: no token / no profile yields undefined without throwing", async () => {
