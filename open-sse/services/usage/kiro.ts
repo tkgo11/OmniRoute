@@ -13,6 +13,11 @@
 
 import { toRecord, toNumber } from "./scalars.ts";
 import { type UsageQuota, parseResetTime } from "./quota.ts";
+import {
+  discoverKiroProfileArnAcrossRegions,
+  kiroRuntimeHost,
+  resolveKiroRuntimeRegion,
+} from "../kiroRegion.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -155,31 +160,29 @@ export async function getKiroUsage(accessToken?: string, providerSpecificData?: 
         ? providerSpecificData.profileArn
         : undefined;
 
-    // Enterprise IAM Identity Center accounts are region-bound: the profileArn, token and
-    // endpoint must all match the region. Derive the region from the stored region (preferred)
-    // or the profileArn, then route to the regional Amazon Q endpoint (us-east-1 keeps the
-    // legacy codewhisperer host; codewhisperer.{region} does not resolve for other regions).
-    const regionFromArn = profileArn
-      ? profileArn.toLowerCase().match(/^arn:aws:codewhisperer:([a-z0-9-]+):/)?.[1]
-      : undefined;
-    const region =
-      (typeof providerSpecificData?.region === "string" &&
-        providerSpecificData.region.trim().toLowerCase()) ||
-      regionFromArn ||
-      "us-east-1";
-    const usageBaseUrl =
-      region === "us-east-1" ? CODEWHISPERER_BASE_URL : `https://q.${region}.amazonaws.com`;
+    const storedRegion =
+      typeof providerSpecificData?.region === "string"
+        ? providerSpecificData.region.trim().toLowerCase()
+        : undefined;
 
-    // IAM Identity Center logins and kiro-cli imports frequently don't persist a profileArn, which
-    // previously caused the quota card to show nothing ("0 used"). Discover it on demand from
-    // ListAvailableProfiles (region-matched) so usage still resolves for those accounts.
+    // Enterprise IAM Identity Center logins and kiro-cli imports frequently don't persist a
+    // profileArn. Discover it by probing the Q Developer PROFILE regions (us-east-1 / eu-central-1)
+    // — NOT the IdC/token region. An IdC in eu-north-1 has no Q runtime host (q.eu-north-1 does not
+    // exist); its profile lives in eu-central-1 (or us-east-1) and the SSO token works cross-region
+    // against it. Without this, the quota card previously showed nothing ("no limits") for such
+    // accounts because the single-region lookup at q.{idcRegion} always failed.
     if (!profileArn && accessToken) {
-      profileArn = await discoverKiroProfileArn(accessToken, usageBaseUrl, region);
+      profileArn = await discoverKiroProfileArnAcrossRegions(accessToken, storedRegion);
     }
 
     if (!profileArn) {
       return { message: "Kiro connected. Profile ARN not available for quota tracking." };
     }
+
+    // The RUNTIME region is the profileArn region (us-east-1 / eu-central-1), never the IdC token
+    // region. Route GetUsageLimits to that region's host so quota resolves for cross-region IdC.
+    const region = resolveKiroRuntimeRegion({ region: storedRegion, profileArn });
+    const usageBaseUrl = region === "us-east-1" ? CODEWHISPERER_BASE_URL : kiroRuntimeHost(region);
 
     // Kiro uses AWS CodeWhisperer GetUsageLimits API
     const payload = {

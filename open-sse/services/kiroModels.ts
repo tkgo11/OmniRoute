@@ -23,6 +23,8 @@
  * never breaks when the account is offline / unauthenticated / token-expired.
  */
 
+import { resolveKiroRuntimeRegion } from "./kiroRegion.ts";
+
 type RawRecord = Record<string, unknown>;
 
 function asRecord(value: unknown): RawRecord {
@@ -76,20 +78,15 @@ export function parseKiroModels(data: unknown): KiroModel[] {
 }
 
 /**
- * Derive the AWS region for a Kiro connection. Mirrors getKiroUsage: prefer the
- * stored region, then the region embedded in the profileArn, else us-east-1.
+ * Derive the RUNTIME AWS region for a Kiro connection's model discovery. Delegates to the shared
+ * resolver: the profileArn region wins (that is where the Q Developer profile + ListAvailableModels
+ * live — us-east-1 / eu-central-1), then a valid stored profile region, else us-east-1. The IdC
+ * token region (e.g. eu-north-1) is deliberately not used as a runtime region.
  */
 export function resolveKiroRegion(providerSpecificData: unknown): string {
-  const psd = asRecord(providerSpecificData);
-  const explicit = toNonEmptyString(psd.region);
-  if (explicit) return explicit.toLowerCase();
-
-  const profileArn = toNonEmptyString(psd.profileArn);
-  const fromArn = profileArn
-    ? profileArn.toLowerCase().match(/^arn:aws:codewhisperer:([a-z0-9-]+):/)?.[1]
-    : undefined;
-
-  return fromArn || "us-east-1";
+  return resolveKiroRuntimeRegion(
+    asRecord(providerSpecificData) as { region?: unknown; profileArn?: unknown }
+  );
 }
 
 /**
