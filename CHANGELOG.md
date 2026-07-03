@@ -15,6 +15,7 @@
 - **feat(providers):** support Vercel AI Gateway embeddings and image generation. (thanks @newnol)
 - **feat(cli-tools):** add Crush CLI tool to the dashboard with one-click configuration. (thanks @dopaemon)
 - **feat(dashboard):** suggest HuggingFace Hub media models in the media provider view. (thanks @yicone)
+- **feat(dashboard):** collapse quota rows and sort by remaining quota in the usage view. (thanks @j2-cuong)
 
 ### 🔧 Bug Fixes
 
