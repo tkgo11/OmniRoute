@@ -19,6 +19,7 @@
 - **feat(dashboard):** add a settings toggle for tool-source diagnostics logging. (thanks @DuyPrX)
 - **feat(oauth):** import a ChatGPT/Codex connection from a raw access token (no refresh token required). (thanks @ryanngit)
 - **feat(providers):** add NVIDIA NIM image generation (FLUX models). (thanks @eng2007)
+- **feat(providers):** add Augment (Auggie CLI) as a local no-auth provider. (thanks @chamdanilukman)
 
 ### 🔧 Bug Fixes
 
