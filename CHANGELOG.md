@@ -35,6 +35,8 @@
 
 - **combo (per-model-quota providers exhausted on a single model 500):** for per-model-quota providers (gemini, github, passthrough, compatible) that multiplex many models behind one connection, a model-level `500` (e.g. Gemini "Internal error encountered") wrongly marked the whole connection exhausted, so sibling models on the same connection were skipped and the combo could 502 instead of falling back. `markConnectionLevelExhaustion` now leaves the connection eligible on a `500` for per-model-quota providers (other connection-level statuses — 408/502/503/504/524 — still exhaust correctly), and the retry loop early-returns when a model is already in lockout. Regression guard: `tests/unit/combo/combo-target-exhaustion.test.ts`. ([#5976](https://github.com/diegosouzapw/OmniRoute/pull/5976) — thanks @hartmark)
 
+- fix(providers): GitLab Duo executor now emulates OpenAI tool_calls (#6051)
+
 ### 📝 Maintenance
 
 - **ci (env-doc base-red):** document `BIFROST_PORT` in `.env.example` + `docs/reference/ENVIRONMENT.md`. The Bifrost embedded-service merge referenced `process.env.BIFROST_PORT` (`src/lib/services/bootstrap.ts`, default `8080`) without documenting it, so `check:env-doc-sync` failed on the release tip — reddening the `Fast Quality Gates` job for **every** open PR→release regardless of its content. Docs-only; no runtime change.
