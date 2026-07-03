@@ -20,6 +20,7 @@
 - **feat(claude-code):** add an opt-in auto-permission classifier compat mode (off/auto/always) for Claude Code, toggleable from the CLI Code settings.
 - **feat(providers):** add optional client-identity header profiles for compatible nodes — preset User-Agent/fingerprint headers (e.g. matching a known CLI) merged into the existing customHeaders field.
 - **feat(xai):** surface Grok usage on the quota dashboard via local usage-history aggregation. (thanks @DevEstacion)
+- **feat(services):** add **Mux** (`coder/mux`) as a managed embedded service — install/start/stop/restart/logs lifecycle + dashboard tab, loopback-only API, `127.0.0.1`-bound with the auth token passed via env (never argv). Ported from upstream 9router#1802. (thanks @Ansh7473)
 
 ### 🔧 Bug Fixes
 
