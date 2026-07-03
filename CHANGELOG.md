@@ -10,6 +10,7 @@
 
 - **feat(api):** add `/v1/ocr` endpoint (Mistral OCR), an OCR provider category, and Mistral moderation support. (thanks @waguriagentic)
 - **Discovery tool (Phase 2):** add the `discoveryResults` DB module (CRUD over the `discovery_results` table, migration 074) and wire the opt-in provider-discovery service to persist and read findings through it (`persistDiscoveryResult`, `getDiscoveryResults`, `getDiscoveryResultById`, `markVerified`, `deleteDiscoveryResult`) with `(provider, method, endpoint)` upsert de-duplication. Adds the `/api/discovery/*` HTTP surface — `GET /results`, `GET|DELETE /results/:id`, `POST /scan`, `POST /verify/:id` — under **strict loopback-only** authorization (`/api/discovery/` is in `LOCAL_ONLY_API_PREFIXES` and is NOT manage-scope-bypassable, so the `scan` route's outbound probes can never be reached from a tunnel/remote origin). Adds a **dashboard UI tab** (Tools → Discovery, `/dashboard/discovery`) to run scans and review, verify, or delete findings. The service stays **opt-in / default-off**.
+- **feat(proxy):** add Webshare proxy pool import and sync — a `WebshareProvider` (`FreeProxyProvider`) that paginates `proxy.webshare.io/api/v2/proxy/list/` gated on `FREE_PROXY_WEBSHARE_API_KEY`, SSRF-guards imported hosts, and tombstones retired proxy IDs via `pruneStaleFreeProxies()`. (thanks @ricatix)
 
 ### 🔧 Bug Fixes
 
