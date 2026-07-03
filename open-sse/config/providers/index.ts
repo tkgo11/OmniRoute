@@ -51,6 +51,7 @@ import { groqProvider } from "./registry/groq/index.ts";
 import { inference_netProvider } from "./registry/inference-net/index.ts";
 import { llm7Provider } from "./registry/llm7/index.ts";
 import { cerebrasProvider } from "./registry/cerebras/index.ts";
+import { nubeProvider } from "./registry/nube/index.ts";
 import { clinepassProvider } from "./registry/clinepass/index.ts";
 import { sparkdeskProvider } from "./registry/sparkdesk/index.ts";
 import { nlpcloudProvider } from "./registry/nlpcloud/index.ts";
@@ -227,6 +228,7 @@ export const REGISTRY: Record<string, RegistryEntry> = {
   "inference-net": inference_netProvider,
   llm7: llm7Provider,
   cerebras: cerebrasProvider,
+  nube: nubeProvider,
   clinepass: clinepassProvider,
   sparkdesk: sparkdeskProvider,
   nlpcloud: nlpcloudProvider,
