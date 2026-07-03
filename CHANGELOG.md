@@ -24,6 +24,7 @@
 - **feat(providers):** add Qiniu as an OpenAI-compatible (API-key) provider. (thanks @JackChiang233)
 - **feat(providers):** add b.ai as an OpenAI-compatible (API-key) provider. (thanks @DEYLNN)
 - **feat(providers):** add Nube.sh as an OpenAI-compatible (API-key) provider. (thanks @whale9820)
+- **feat(providers):** add Charm Hyper as an OpenAI-compatible (API-key) provider. (thanks @whale9820)
 
 ### 🔧 Bug Fixes
 
