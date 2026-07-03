@@ -13,6 +13,7 @@
 - **feat(proxy):** add Webshare proxy pool import and sync — a `WebshareProvider` (`FreeProxyProvider`) that paginates `proxy.webshare.io/api/v2/proxy/list/` gated on `FREE_PROXY_WEBSHARE_API_KEY`, SSRF-guards imported hosts, and tombstones retired proxy IDs via `pruneStaleFreeProxies()`. (thanks @ricatix)
 - **feat(api-keys):** track devices/connections per API key — an in-memory, TTL-evicted device fingerprint tracker (SHA-256 of masked IP + truncated user-agent) wired non-blocking into the chat path and surfaced via `GET /api/keys/[id]/devices` with a dashboard device-count chip. (thanks @mugnimaestra)
 - **feat(providers):** support Vercel AI Gateway embeddings and image generation. (thanks @newnol)
+- **feat(cli-tools):** add Crush CLI tool to the dashboard with one-click configuration. (thanks @dopaemon)
 
 ### 🔧 Bug Fixes
 
