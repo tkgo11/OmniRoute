@@ -18,6 +18,7 @@
 - **feat(dashboard):** collapse quota rows and sort by remaining quota in the usage view. (thanks @j2-cuong)
 - **feat(dashboard):** add a settings toggle for tool-source diagnostics logging. (thanks @DuyPrX)
 - **feat(oauth):** import a ChatGPT/Codex connection from a raw access token (no refresh token required). (thanks @ryanngit)
+- **feat(providers):** add NVIDIA NIM image generation (FLUX models). (thanks @eng2007)
 
 ### 🔧 Bug Fixes
 
