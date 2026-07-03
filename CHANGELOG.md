@@ -25,6 +25,7 @@
 - **feat(providers):** add b.ai as an OpenAI-compatible (API-key) provider. (thanks @DEYLNN)
 - **feat(providers):** add Nube.sh as an OpenAI-compatible (API-key) provider. (thanks @whale9820)
 - **feat(providers):** add Charm Hyper as an OpenAI-compatible (API-key) provider. (thanks @whale9820)
+- **feat(providers):** add SumoPod and X5Lab as OpenAI-compatible (API-key) providers. (thanks @rigelra15)
 
 ### 🔧 Bug Fixes
 
