@@ -886,6 +886,36 @@ function buildQuotaPreflightRateLimitedResult(
   };
 }
 
+function quotaPreflightUnavailableUntil(resetAt?: string | null): string {
+  const resetMs = parseFutureDateMs(resetAt ?? null);
+  return new Date(resetMs ?? Date.now() + 5 * 60 * 1000).toISOString();
+}
+
+async function markQuotaPreflightAccountUnavailable(
+  provider: string,
+  connectionId: string,
+  preflight: { quotaPercent?: number; resetAt?: string | null },
+  requestedModel: string | null
+): Promise<string> {
+  const unavailableUntil = quotaPreflightUnavailableUntil(preflight.resetAt ?? null);
+  const percentLabel = Number.isFinite(preflight.quotaPercent)
+    ? `${Math.round((preflight.quotaPercent as number) * 100)}%`
+    : "exhausted";
+  const modelLabel = requestedModel ? ` for ${requestedModel}` : "";
+
+  await updateProviderConnection(connectionId, {
+    rateLimitedUntil: unavailableUntil,
+    testStatus: "unavailable",
+    lastError: `Quota preflight blocked${modelLabel}: ${percentLabel}`,
+    lastErrorType: "quota_exhausted",
+    lastErrorSource: "quota_preflight",
+    errorCode: 429,
+    lastErrorAt: new Date().toISOString(),
+  });
+
+  return unavailableUntil;
+}
+
 // Provider-scoped mutexes prevent race conditions during account selection without
 // serializing unrelated providers behind a single global lock.
 const selectionMutexes = new Map<string, Promise<void>>();
@@ -1711,6 +1741,13 @@ export async function getProviderCredentialsWithQuotaPreflight(
       ("allRateLimited" in credentials && credentials.allRateLimited) ||
       ("allExpired" in credentials && credentials.allExpired)
     ) {
+      if (
+        "allRateLimited" in credentials &&
+        credentials.allRateLimited &&
+        blockedByPreflight.length > 0
+      ) {
+        return buildQuotaPreflightRateLimitedResult(provider, blockedByPreflight);
+      }
       return credentials;
     }
 
@@ -1790,10 +1827,16 @@ export async function getProviderCredentialsWithQuotaPreflight(
       return credentials;
     }
 
+    const unavailableUntil = await markQuotaPreflightAccountUnavailable(
+      provider,
+      connectionId,
+      preflight,
+      requestedModel
+    );
     blockedByPreflight.push({
       id: connectionId,
       quotaPercent: preflight.quotaPercent,
-      resetAt: preflight.resetAt ?? null,
+      resetAt: unavailableUntil,
     });
     excludedConnectionIds.add(connectionId);
 
@@ -1803,7 +1846,7 @@ export async function getProviderCredentialsWithQuotaPreflight(
         Number.isFinite(preflight.quotaPercent)
           ? ` at ${Math.round((preflight.quotaPercent as number) * 100)}%`
           : ""
-      }`
+      } until ${unavailableUntil}`
     );
   }
 }
