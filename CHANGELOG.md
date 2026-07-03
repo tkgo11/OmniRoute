@@ -16,6 +16,7 @@
 - **feat(cli-tools):** add Crush CLI tool to the dashboard with one-click configuration. (thanks @dopaemon)
 - **feat(dashboard):** suggest HuggingFace Hub media models in the media provider view. (thanks @yicone)
 - **feat(dashboard):** collapse quota rows and sort by remaining quota in the usage view. (thanks @j2-cuong)
+- **feat(dashboard):** add a settings toggle for tool-source diagnostics logging. (thanks @DuyPrX)
 
 ### 🔧 Bug Fixes
 
