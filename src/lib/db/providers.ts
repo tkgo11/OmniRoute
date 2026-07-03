@@ -738,6 +738,8 @@ export {
 } from "./providers/nodes";
 export {
   setConnectionRateLimitUntil,
+  markConnectionRateLimitedUntil,
+  clearConnectionRateLimit,
   isConnectionRateLimited,
   getRateLimitedConnections,
   getEffectiveQuotaUsage,
