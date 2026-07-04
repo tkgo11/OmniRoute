@@ -22,6 +22,8 @@
 
 ### 🔧 Bug Fixes
 
+- **fix(mitm):** add an in-process guard so concurrent MITM server starts no longer race — a second start while one is already in flight is short-circuited instead of double-binding the listener. Regression guard: `tests/unit/mitm-start-guard.test.ts`. (thanks @anki1kr)
+
 - **translator (Responses → Chat Completions):** strip the Responses-API-only `truncation` field before forwarding a `/v1/responses` request to a non-OpenAI Chat Completions upstream. Strict upstreams (e.g. NVIDIA NIM) rejected it with HTTP 400 `Unsupported parameter(s): truncation`, breaking Codex-style clients routed to those providers. `client_metadata`, `background`, and `safety_identifier` were already stripped — `truncation` was the remaining gap. Regression guard: `tests/unit/responses-strip-truncation-2311.test.ts`. (thanks @TuanNguyen0708)
 
 - **combo (prefer known context capacity over unknown):** when a combo filters out at least one target for exceeding a *known* context limit, the router now prefers the remaining known-compatible targets over targets whose context metadata is simply unknown, instead of letting unknown-metadata targets be the only survivors. If no known-compatible context target remains, context-only candidates fall back to the normal strategy order. Regression guard: `tests/unit/combo-context-window-filter.test.ts`. ([#6088](https://github.com/diegosouzapw/OmniRoute/pull/6088) — thanks @Thinkscape)
