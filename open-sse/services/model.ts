@@ -142,14 +142,19 @@ interface ProviderConnectionLike {
  */
 export function resolveProviderAlias(aliasOrId: string | null | undefined): string | null {
   if (typeof aliasOrId !== "string") return null;
-  // Follow the alias chain transitively so intermediate aliases
-  // (e.g. "oc" -> "opencode" -> "opencode-zen") resolve to the final target.
+  // Follow the alias chain transitively so intermediate alias-only hops resolve
+  // to the final target, but STOP as soon as a hop lands on a registered
+  // provider id (#2901): "oc" must resolve to the no-auth "opencode" provider,
+  // NOT continue through the manual "opencode" → "opencode-zen" slug override —
+  // that override is for user-typed `opencode/` prefixes only. Without this
+  // boundary the no-auth provider becomes unreachable by any prefix.
   // Guarded against infinite loops with both a depth limit and a seen-set.
   let current = aliasOrId;
   const seen = new Set<string>();
   for (let i = 0; i < 10; i++) {
     const next = ALIAS_TO_PROVIDER_ID[current];
     if (!next || next === current) return current;
+    if (next in PROVIDER_ID_TO_ALIAS) return next;
     if (seen.has(next)) return next;
     seen.add(next);
     current = next;
