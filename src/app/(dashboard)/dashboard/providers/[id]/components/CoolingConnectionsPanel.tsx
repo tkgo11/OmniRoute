@@ -4,7 +4,7 @@
  * CoolingConnectionsPanel — Dashboard readout of connections currently in a
  * persisted 429 cooldown. Sourced from `useProviderConnections().connections`
  * filtered on `rateLimitedUntil`. Live human-readable countdown via the
- * existing `formatResetCountdown` helper re-exported by `@/lib/localDb`.
+ * client-safe `formatResetCountdown` helper in `@/shared/utils/formatting`.
  *
  * Why this exists: Fix A (per-account 429 cascade not persisting) writes the
  * cooldown to `provider_connections.rate_limited_until` so the cascade
@@ -22,8 +22,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
-import { formatResetCountdown } from "@/lib/localDb";
+import { formatResetCountdown } from "@/shared/utils/formatting";
 import type { ConnectionRowConnection } from "./ConnectionRow";
 
 export interface CoolingConnectionsPanelProps {
@@ -36,9 +35,7 @@ function isCoolingNow(connection: ConnectionRowConnection, now: number): boolean
   return Number.isFinite(until) && until > now;
 }
 
-export default function CoolingConnectionsPanel(
-  props: CoolingConnectionsPanelProps,
-) {
+export default function CoolingConnectionsPanel(props: CoolingConnectionsPanelProps) {
   const { connections } = props;
   // Tick once per second so the human-readable countdown updates.
   const [now, setNow] = useState<number>(() => Date.now());
@@ -51,9 +48,9 @@ export default function CoolingConnectionsPanel(
   if (cooling.length === 0) return null;
 
   return (
-    <Card
+    <div
       data-testid="cooling-connections-panel"
-      className="mb-4 border-amber-500/40 bg-amber-500/5 p-4"
+      className="mb-4 rounded-card border border-amber-500/40 bg-amber-500/5 p-4 shadow-sm"
     >
       <div className="mb-2 flex items-center gap-2">
         <span
@@ -65,15 +62,17 @@ export default function CoolingConnectionsPanel(
         </h3>
       </div>
       <p className="mb-3 text-xs text-muted-foreground">
-        These connections returned a 429 (rate-limit) on their last request.
-        OmniRoute will skip them until the timer expires — no manual disable
-        required.
+        These connections returned a 429 (rate-limit) on their last request. OmniRoute will skip
+        them until the timer expires — no manual disable required.
       </p>
       <ul className="space-y-1">
         {cooling.map((c) => {
           const until = c.rateLimitedUntil!;
           const label =
-            c.displayName || c.name || c.email || (c.id ? `connection ${c.id.slice(0, 8)}` : "connection");
+            c.displayName ||
+            c.name ||
+            c.email ||
+            (c.id ? `connection ${c.id.slice(0, 8)}` : "connection");
           return (
             <li
               key={c.id ?? label}
@@ -90,6 +89,6 @@ export default function CoolingConnectionsPanel(
           );
         })}
       </ul>
-    </Card>
+    </div>
   );
 }
