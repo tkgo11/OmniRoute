@@ -22,6 +22,8 @@
 
 ### 🔧 Bug Fixes
 
+- **translator (Responses → Chat Completions):** strip the Responses-API-only `truncation` field before forwarding a `/v1/responses` request to a non-OpenAI Chat Completions upstream. Strict upstreams (e.g. NVIDIA NIM) rejected it with HTTP 400 `Unsupported parameter(s): truncation`, breaking Codex-style clients routed to those providers. `client_metadata`, `background`, and `safety_identifier` were already stripped — `truncation` was the remaining gap. Regression guard: `tests/unit/responses-strip-truncation-2311.test.ts`. (thanks @TuanNguyen0708)
+
 - **combo (prefer known context capacity over unknown):** when a combo filters out at least one target for exceeding a *known* context limit, the router now prefers the remaining known-compatible targets over targets whose context metadata is simply unknown, instead of letting unknown-metadata targets be the only survivors. If no known-compatible context target remains, context-only candidates fall back to the normal strategy order. Regression guard: `tests/unit/combo-context-window-filter.test.ts`. ([#6088](https://github.com/diegosouzapw/OmniRoute/pull/6088) — thanks @Thinkscape)
 
 - **models (GLM-5.2 context normalization):** stop treating every hosted GLM-5.2 provider alias as the native 1M-context model. Native/bare GLM-5.2 and verified OpenCode / ZenMux routes keep their 1,000,000-token context, while hosted-provider aliases now respect the caps declared in their provider metadata instead of inheriting the native max. Regression guards: `tests/unit/model-capabilities-registry.test.ts`, `tests/unit/models-catalog-route.test.ts`. ([#6091](https://github.com/diegosouzapw/OmniRoute/pull/6091) — thanks @Thinkscape)
