@@ -26,6 +26,8 @@
 
 ### 🔧 Bug Fixes
 
+- **oauth (Zed "Unknown provider" crash):** adding **Zed** from the providers dashboard threw an unhandled `OAuth GET error: Unknown provider: zed` (500) ([#6041](https://github.com/diegosouzapw/OmniRoute/issues/6041)). Zed is a **keychain-import-only** provider — it's listed in the OAuth catalog so the UI shows it, but has no OAuth handler, so the generic `/api/oauth/[provider]/[action]` route hit `getProvider("zed")` and crashed. The route now recognizes keychain-import-only providers and returns a clear **400** pointing users at the **Import** button (for both GET and POST OAuth actions), instead of a 500. Regression guard: `tests/unit/oauth-keychain-import-only-6041.test.ts`. (thanks @imblowsnow)
+
 - **fix(providers):** disable the unsupported `thinking` param for `minimax-m2.7` on NVIDIA NIM (the upstream rejects it). Regression guard: `tests/unit/nvidia-minimax-thinking-strip.test.ts`. (thanks @anki1kr)
 
 - **fix(mitm):** add an in-process guard so concurrent MITM server starts no longer race — a second start while one is already in flight is short-circuited instead of double-binding the listener. Regression guard: `tests/unit/mitm-start-guard.test.ts`. (thanks @anki1kr)
