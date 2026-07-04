@@ -7,7 +7,7 @@ import path from "node:path";
 import net from "node:net";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { MockUpstreamServer, buildCompletion } from "./helpers/mockUpstreamServer.ts";
+import { MockUpstreamServer, buildCompletion } from "../e2e/helpers/mockUpstreamServer.ts";
 
 // #5521 — E2E test for fingerprint-based combo expansion.
 // Seeds a mimocode connection with 3 fingerprints, creates a round-robin combo,
