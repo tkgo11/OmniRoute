@@ -189,29 +189,6 @@ export default function ProxyRegistryManager() {
     failed: number;
   } | null>(null);
 
-  const {
-    selectedIds,
-    setSelectedIds,
-    batchDeleting,
-    autoTesting,
-    toggleSelectAll: hookToggleSelectAll,
-    toggleSelect,
-    handleBatchDelete: hookHandleBatchDelete,
-    handleAutoTestAll: hookHandleAutoTestAll,
-  } = useProxyBatchOperations(load);
-
-  const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
-
-
-  const handleBatchDelete = useCallback(() => {
-    hookHandleBatchDelete(setError);
-  }, [hookHandleBatchDelete, setError]);
-
-  const handleAutoTestAll = useCallback(() => {
-    hookHandleAutoTestAll(setError, setTestById);
-  }, [hookHandleAutoTestAll, setError, setTestById]);
-
-
   const editingId = useMemo(() => form.id || "", [form.id]);
 
   const loadHealth = useCallback(async () => {
@@ -284,10 +261,32 @@ export default function ProxyRegistryManager() {
     }
   }, [loadHealth, loadAllUsage, t]);
 
+  // MUST come after the `load` const above — referencing it earlier TDZ-crashes
+  // every SSR render (#5918 regression; guard: ProxyRegistryManager-tdz-render).
+  const {
+    selectedIds,
+    setSelectedIds,
+    batchDeleting,
+    autoTesting,
+    toggleSelectAll: hookToggleSelectAll,
+    toggleSelect,
+    handleBatchDelete: hookHandleBatchDelete,
+    handleAutoTestAll: hookHandleAutoTestAll,
+  } = useProxyBatchOperations(load);
+
+  const allSelected = items.length > 0 && items.every((item) => selectedIds.has(item.id));
+
+  const handleBatchDelete = useCallback(() => {
+    hookHandleBatchDelete(setError);
+  }, [hookHandleBatchDelete, setError]);
+
+  const handleAutoTestAll = useCallback(() => {
+    hookHandleAutoTestAll(setError, setTestById);
+  }, [hookHandleAutoTestAll, setError, setTestById]);
+
   useEffect(() => {
     void load();
   }, [load]);
-
 
   useEffect(() => {
     if (items.length > 0 && !bulkProxyId) {
@@ -673,7 +672,9 @@ export default function ProxyRegistryManager() {
                       className="accent-blue-500 w-4 h-4 cursor-pointer"
                       checked={allSelected}
                       ref={(el) => {
-                        if (el) el.indeterminate = !allSelected && items.some((item) => selectedIds.has(item.id));
+                        if (el)
+                          el.indeterminate =
+                            !allSelected && items.some((item) => selectedIds.has(item.id));
                       }}
                       onChange={() => hookToggleSelectAll(allSelected, items)}
                       aria-label="Select all proxies"

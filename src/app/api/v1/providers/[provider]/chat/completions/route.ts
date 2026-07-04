@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { buildClientRawRequest, handleChat } from "@/sse/handlers/chat";
 import { initTranslators } from "@omniroute/open-sse/translator/index.ts";
 import { errorResponse } from "@omniroute/open-sse/utils/error.ts";
@@ -53,16 +54,20 @@ export async function POST(request, { params }) {
     return errorResponse(HTTP_STATUS.BAD_REQUEST, "Invalid JSON body");
   }
 
-  if (!rawBody || typeof rawBody !== "object" || Array.isArray(rawBody)) {
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "Request body must be a JSON object");
+  // Minimal request-shape validation (Rule #7 / t06 gate). `.passthrough()` keeps
+  // the #5907 relaxed semantics: only the fields this route touches are guarded
+  // here; full chat-format validation stays delegated to handleChat.
+  const routeBodySchema = z.object({ model: z.string().optional() }).passthrough();
+  const parsed = routeBodySchema.safeParse(rawBody);
+  if (!parsed.success) {
+    const isNotObject = !rawBody || typeof rawBody !== "object" || Array.isArray(rawBody);
+    return errorResponse(
+      HTTP_STATUS.BAD_REQUEST,
+      isNotObject ? "Request body must be a JSON object" : "model must be a string"
+    );
   }
 
-  const body = rawBody as { model?: string; [key: string]: unknown };
-
-  // Keep the route-level checks minimal: only guard fields needed for provider prefix handling.
-  if (body.model !== undefined && typeof body.model !== "string") {
-    return errorResponse(HTTP_STATUS.BAD_REQUEST, "model must be a string");
-  }
+  const body = parsed.data as { model?: string; [key: string]: unknown };
 
   // Validate model belongs to this provider
   if (body.model) {
