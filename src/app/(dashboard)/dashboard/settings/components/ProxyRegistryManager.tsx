@@ -261,8 +261,7 @@ export default function ProxyRegistryManager() {
     }
   }, [loadHealth, loadAllUsage, t]);
 
-  // MUST come after the `load` const above — referencing it earlier TDZ-crashes
-  // every SSR render (#5918 regression; guard: ProxyRegistryManager-tdz-render).
+  // MUST stay after the `load` const — earlier use TDZ-crashes SSR (#5918 guard).
   const {
     selectedIds,
     setSelectedIds,
