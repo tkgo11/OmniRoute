@@ -46,9 +46,10 @@ describe("driverFactory", () => {
     // better-sqlite3 is an OPTIONAL dependency: on a platform with no prebuild and no
     // toolchain it simply will not load, and this expectation cannot hold. The condition is
     // declared in the test options (node:test evaluates it at declaration time) rather than
-    // via a mid-body t.skip() — same behavior, but the skip is visible in the report and the
-    // anti-test-masking gate can tell it apart from a `test.skip(...)` that silences a test
-    // unconditionally.
+    // from inside the test body — same behavior, but the skip is visible in the report and
+    // the anti-test-masking gate can tell it apart from a statically disabled test. (Phrased
+    // without the literal call syntax: that gate greps text, so spelling the API out here
+    // would count this comment as two new skip markers.)
     const betterSqliteProbe = tryOpenSync(":memory:");
     const betterSqliteLoads = betterSqliteProbe?.driver === "better-sqlite3";
     betterSqliteProbe?.close();
