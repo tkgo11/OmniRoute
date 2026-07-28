@@ -173,7 +173,7 @@
     "_rebaseline_basered_codebuddy_cn": "Base-red fix (#4664 CodeBuddy CN): oauth-providers-config.test.ts 867->870 (+3) to align the EXPECTED provider list/config with the codebuddy-cn provider that #4664 added to the registry without updating this test (it asserts 'exactly once').",
     "_rebaseline_pr4613_compatible_provider_groups": "Reconcile #4613 already-merged growth: providers-page-utils.test.ts 1004->1052 (+48, buildCompatibleProviderGroups partition unit test). Fast-gate PR->release does not run check:file-size, so this surfaced post-merge.",
     "tests/integration/chat-pipeline.test.ts": 1592,
-    "tests/integration/chatcore-compression-integration.test.ts": 1111,
+    "tests/integration/chatcore-compression-integration.test.ts": 1114,
     "tests/unit/account-fallback-service.test.ts": 1563,
     "tests/unit/batch_api.test.ts": 1324,
     "tests/unit/cc-compatible-provider.test.ts": 1217,
