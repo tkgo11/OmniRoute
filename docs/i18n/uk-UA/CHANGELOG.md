@@ -1140,6 +1140,8 @@ _Living section — regenerated 2026-07-19 from all 306 cycle commits (bump 2c62
 - **fix(api):** stop JSON.stringify-ing messages before estimateTokens (restores #8368 image estimate) [recovered from #8599] ([#8740](https://github.com/diegosouzapw/OmniRoute/pull/8740))
 - **fix(quality):** let --update remove baseline entries that already fit the cap ([#8741](https://github.com/diegosouzapw/OmniRoute/pull/8741)) — thanks @MumuTW
 - **fix:** escape angle brackets in i18n messages to prevent next-intl INVALID_MESSAGE errors ([#8747](https://github.com/diegosouzapw/OmniRoute/pull/8747)) — thanks @SteeleHu
+- **fix(dashboard):** Request Logs detail no longer crashes on a structured error object — #7920 introduced `formatErrorForDisplay` for exactly this, but the combo-503 / cooldown checks added by #8213 read the raw field and called `.toLowerCase()` on it. Both paths now share the helper.
+- **fix(dashboard):** the logs detail modal stops reopening on first close again — #6830 fixed it by reading the deep-link id once, and the #8354 page rewrite regressed it by reading the live `searchParams` on every render, flipping the prop mid-session.
 ### 📚 Docs
 
 - **docs(quality):** codify retry policy per runner + release-level drift rule (WS5.4/WS5.5) ([#7107](https://github.com/diegosouzapw/OmniRoute/pull/7107))
@@ -1322,6 +1324,7 @@ _Living section — regenerated 2026-07-19 from all 306 cycle commits (bump 2c62
 
 - **fix(base-red):** full-suite realignment after the 102-PR merge campaign: two real production fixes (legacy `refresh_token` column healed before its index is created; `shouldSkipCloudSyncInitialization` no longer swaps its `(env, argv)` arguments) plus 13 test files, goldens, provider counts, and env docs realigned to the live-validated behavior of the merged PRs.
 - **chore(release-branch):** cycle maintenance pushed directly to `release/v3.8.49` with no PR of its own — 19 merge-train landings validated on the `.113` box, 14 quality-ratchet re-pins (file-size / complexity / cognitive) absorbing the drift of the merged batches, 8 base-red realignments (build, oauth, embeddings, security, mitm, combo, antigravity, router-eval), the `changelog.d` aggregation passes and the 42 i18n CHANGELOG mirrors.
+- **test(ui):** the `vitest:ui` suite was red across the whole cycle and nobody saw it — the job kept being cancelled by successive pushes, so a blocking gate never ran to completion. Root cause: #7935 instrumented ~180 shared/dashboard components with `next-intl` without updating the tests that mount them. Fixed at the shared setup (`tests/_setup/vitestUiPolyfills.ts`) with a translator backed by the real `en.json`, memoized per namespace so components whose `useCallback`/`useEffect` depend on `t` no longer loop; 15 test files realigned to the real strings. 194→198 files green.
 
 ### 📝 Maintenance
 - **Merge-train script** (`scripts/release/merge-train.sh`): batch-validates N queued PRs as ONE merged result on the runner box — merges every queued PR into a throwaway worktree cut from the release tip, runs the fast-gates parity suite once, and prints the `--admin` evidence block per PR (merge-gates §7). Replaces O(N²) per-PR CI re-runs in merge-storms. Regression guard: `tests/unit/merge-train-plan.test.ts`. ([#6784](https://github.com/diegosouzapw/OmniRoute/pull/6784))
