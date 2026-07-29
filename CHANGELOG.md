@@ -1142,6 +1142,7 @@ _Living section — regenerated 2026-07-19 from all 306 cycle commits (bump 2c62
 - **fix(api):** stop JSON.stringify-ing messages before estimateTokens (restores #8368 image estimate) [recovered from #8599] ([#8740](https://github.com/diegosouzapw/OmniRoute/pull/8740))
 - **fix(quality):** let --update remove baseline entries that already fit the cap ([#8741](https://github.com/diegosouzapw/OmniRoute/pull/8741)) — thanks @MumuTW
 - **fix:** escape angle brackets in i18n messages to prevent next-intl INVALID_MESSAGE errors ([#8747](https://github.com/diegosouzapw/OmniRoute/pull/8747)) — thanks @SteeleHu
+- **fix(dashboard):** the /home quick-start cards no longer prefetch — #8292 opted the sidebar out of automatic route prefetch but left the landing page's own five links untouched, so first paint still fired 12 speculative RSC requests. The e2e guard shipped in that same PR could not catch it: it hung in the auth helper and never reached its assertion until this release's CI.
 - **fix(dashboard):** Request Logs detail no longer crashes on a structured error object — #7920 introduced `formatErrorForDisplay` for exactly this, but the combo-503 / cooldown checks added by #8213 read the raw field and called `.toLowerCase()` on it. Both paths now share the helper.
 - **fix(dashboard):** the logs detail modal stops reopening on first close again — #6830 fixed it by reading the deep-link id once, and the #8354 page rewrite regressed it by reading the live `searchParams` on every render, flipping the prop mid-session.
 ### 📚 Docs
